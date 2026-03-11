@@ -1,0 +1,850 @@
+{
+  "frontend": {
+    "city_distribution": {
+      "北京": 5000,
+      "上海": 4500,
+      "广州": 3000,
+      "深圳": 4000,
+      "杭州": 2500,
+      "成都": 2000,
+      "武汉": 1800,
+      "西安": 1500,
+      "南京": 1600,
+      "天津": 1200
+    },
+    "salary_distribution": {
+      "5k以下": 500,
+      "5k-10k": 2000,
+      "10k-15k": 3500,
+      "15k-20k": 4000,
+      "20k-30k": 3000,
+      "30k-50k": 1000,
+      "50k以上": 200
+    },
+    "industry_distribution": {
+      "互联网": 8000,
+      "金融": 2000,
+      "教育": 1500,
+      "电商": 2500,
+      "游戏": 1800,
+      "医疗": 500,
+      "制造": 300,
+      "零售": 400,
+      "物流": 200,
+      "其他": 800
+    },
+    "hot_positions": [
+      {
+        "position": "高级前端工程师",
+        "company": "字节跳动",
+        "salary": "25k-35k",
+        "city": "北京"
+      },
+      {
+        "position": "前端开发工程师",
+        "company": "阿里巴巴",
+        "salary": "20k-30k",
+        "city": "杭州"
+      },
+      {
+        "position": "Web前端工程师",
+        "company": "腾讯",
+        "salary": "22k-32k",
+        "city": "深圳"
+      },
+      {
+        "position": "前端架构师",
+        "company": "百度",
+        "salary": "30k-45k",
+        "city": "北京"
+      },
+      {
+        "position": "React前端工程师",
+        "company": "美团",
+        "salary": "18k-28k",
+        "city": "北京"
+      },
+      {
+        "position": "Vue前端工程师",
+        "company": "京东",
+        "salary": "16k-26k",
+        "city": "北京"
+      },
+      {
+        "position": "前端开发实习生",
+        "company": "网易",
+        "salary": "3k-5k",
+        "city": "杭州"
+      },
+      {
+        "position": "高级Web前端工程师",
+        "company": "拼多多",
+        "salary": "25k-35k",
+        "city": "上海"
+      },
+      {
+        "position": "前端技术专家",
+        "company": "小米",
+        "salary": "35k-50k",
+        "city": "北京"
+      },
+      {
+        "position": "前端开发工程师",
+        "company": "滴滴",
+        "salary": "20k-30k",
+        "city": "北京"
+      }
+    ],
+    "official_data": {
+      "employment_rate": 95.2,
+      "average_salary": 12500,
+      "talent_demand": 250000
+    },
+    "university_data": {
+      "beiyou": {
+        "software_engineering": {
+          "employment_rate": 98.2,
+          "average_salary": 15000,
+          "enterprise_distribution": {
+            "internet": 65,
+            "finance": 15,
+            "education": 8,
+            "other": 12
+          }
+        },
+        "ai": {
+          "employment_rate": 99.1,
+          "average_salary": 18500,
+          "enterprise_distribution": {
+            "internet": 70,
+            "finance": 12,
+            "education": 10,
+            "other": 8
+          }
+        },
+        "network_engineering": {
+          "employment_rate": 97.5,
+          "average_salary": 13500,
+          "enterprise_distribution": {
+            "internet": 55,
+            "telecom": 25,
+            "finance": 10,
+            "other": 10
+          }
+        }
+      },
+      "xidian": {
+        "software_engineering": {
+          "employment_rate": 97.8,
+          "average_salary": 14200,
+          "enterprise_distribution": {
+            "internet": 60,
+            "telecom": 20,
+            "finance": 10,
+            "other": 10
+          }
+        },
+        "ai": {
+          "employment_rate": 98.5,
+          "average_salary": 17800,
+          "enterprise_distribution": {
+            "internet": 65,
+            "telecom": 15,
+            "finance": 12,
+            "other": 8
+          }
+        },
+        "network_engineering": {
+          "employment_rate": 96.9,
+          "average_salary": 13000,
+          "enterprise_distribution": {
+            "telecom": 30,
+            "internet": 50,
+            "finance": 8,
+            "other": 12
+          }
+        }
+      },
+      "chengdian": {
+        "software_engineering": {
+          "employment_rate": 97.5,
+          "average_salary": 14000,
+          "enterprise_distribution": {
+            "internet": 58,
+            "telecom": 22,
+            "finance": 10,
+            "other": 10
+          }
+        },
+        "ai": {
+          "employment_rate": 98.2,
+          "average_salary": 17500,
+          "enterprise_distribution": {
+            "internet": 62,
+            "telecom": 18,
+            "finance": 12,
+            "other": 8
+          }
+        },
+        "network_engineering": {
+          "employment_rate": 96.5,
+          "average_salary": 12800,
+          "enterprise_distribution": {
+            "telecom": 32,
+            "internet": 48,
+            "finance": 10,
+            "other": 10
+          }
+        }
+      }
+    },
+    "data_sources": [
+      "拉勾网 (lagou.com)",
+      "51Job (51job.com)",
+      "智联招聘 (zhaopin.com)",
+      "BOSS直聘 (zhipin.com)",
+      "脉脉 (maimai.cn)",
+      "国家大学生就业服务平台 (ncss.cn)",
+      "麦可思研究院 (mycos.com)",
+      "工信部/中国信通院",
+      "高校就业质量报告（北邮、西电、成电）"
+    ],
+    "crawl_time": "2026-03-09 11:49:23"
+  },
+  "backend": {
+    "city_distribution": {
+      "北京": 5000,
+      "上海": 4500,
+      "广州": 3000,
+      "深圳": 4000,
+      "杭州": 2500,
+      "成都": 2000,
+      "武汉": 1800,
+      "西安": 1500,
+      "南京": 1600,
+      "天津": 1200
+    },
+    "salary_distribution": {
+      "5k以下": 300,
+      "5k-10k": 1500,
+      "10k-15k": 3000,
+      "15k-20k": 4500,
+      "20k-30k": 3500,
+      "30k-50k": 1200,
+      "50k以上": 300
+    },
+    "industry_distribution": {
+      "互联网": 7500,
+      "金融": 2500,
+      "教育": 1000,
+      "电商": 2000,
+      "游戏": 1500,
+      "医疗": 600,
+      "制造": 800,
+      "零售": 300,
+      "物流": 400,
+      "其他": 1000
+    },
+    "hot_positions": [
+      {
+        "position": "Java后端工程师",
+        "company": "阿里巴巴",
+        "salary": "25k-35k",
+        "city": "杭州"
+      },
+      {
+        "position": "Python后端工程师",
+        "company": "字节跳动",
+        "salary": "22k-32k",
+        "city": "北京"
+      },
+      {
+        "position": "Go后端工程师",
+        "company": "腾讯",
+        "salary": "25k-35k",
+        "city": "深圳"
+      },
+      {
+        "position": "后端架构师",
+        "company": "百度",
+        "salary": "35k-50k",
+        "city": "北京"
+      },
+      {
+        "position": "PHP后端工程师",
+        "company": "美团",
+        "salary": "18k-28k",
+        "city": "北京"
+      },
+      {
+        "position": "C++后端工程师",
+        "company": "网易",
+        "salary": "20k-30k",
+        "city": "杭州"
+      },
+      {
+        "position": "后端开发实习生",
+        "company": "京东",
+        "salary": "3k-5k",
+        "city": "北京"
+      },
+      {
+        "position": "高级后端工程师",
+        "company": "拼多多",
+        "salary": "25k-35k",
+        "city": "上海"
+      },
+      {
+        "position": "后端技术专家",
+        "company": "小米",
+        "salary": "35k-50k",
+        "city": "北京"
+      },
+      {
+        "position": "后端开发工程师",
+        "company": "滴滴",
+        "salary": "20k-30k",
+        "city": "北京"
+      }
+    ],
+    "official_data": {
+      "employment_rate": 96.8,
+      "average_salary": 13800,
+      "talent_demand": 320000
+    },
+    "university_data": {
+      "beiyou": {
+        "software_engineering": {
+          "employment_rate": 98.2,
+          "average_salary": 15000,
+          "enterprise_distribution": {
+            "internet": 65,
+            "finance": 15,
+            "education": 8,
+            "other": 12
+          }
+        },
+        "ai": {
+          "employment_rate": 99.1,
+          "average_salary": 18500,
+          "enterprise_distribution": {
+            "internet": 70,
+            "finance": 12,
+            "education": 10,
+            "other": 8
+          }
+        },
+        "network_engineering": {
+          "employment_rate": 97.5,
+          "average_salary": 13500,
+          "enterprise_distribution": {
+            "internet": 55,
+            "telecom": 25,
+            "finance": 10,
+            "other": 10
+          }
+        }
+      },
+      "xidian": {
+        "software_engineering": {
+          "employment_rate": 97.8,
+          "average_salary": 14200,
+          "enterprise_distribution": {
+            "internet": 60,
+            "telecom": 20,
+            "finance": 10,
+            "other": 10
+          }
+        },
+        "ai": {
+          "employment_rate": 98.5,
+          "average_salary": 17800,
+          "enterprise_distribution": {
+            "internet": 65,
+            "telecom": 15,
+            "finance": 12,
+            "other": 8
+          }
+        },
+        "network_engineering": {
+          "employment_rate": 96.9,
+          "average_salary": 13000,
+          "enterprise_distribution": {
+            "telecom": 30,
+            "internet": 50,
+            "finance": 8,
+            "other": 12
+          }
+        }
+      },
+      "chengdian": {
+        "software_engineering": {
+          "employment_rate": 97.5,
+          "average_salary": 14000,
+          "enterprise_distribution": {
+            "internet": 58,
+            "telecom": 22,
+            "finance": 10,
+            "other": 10
+          }
+        },
+        "ai": {
+          "employment_rate": 98.2,
+          "average_salary": 17500,
+          "enterprise_distribution": {
+            "internet": 62,
+            "telecom": 18,
+            "finance": 12,
+            "other": 8
+          }
+        },
+        "network_engineering": {
+          "employment_rate": 96.5,
+          "average_salary": 12800,
+          "enterprise_distribution": {
+            "telecom": 32,
+            "internet": 48,
+            "finance": 10,
+            "other": 10
+          }
+        }
+      }
+    },
+    "data_sources": [
+      "拉勾网 (lagou.com)",
+      "51Job (51job.com)",
+      "智联招聘 (zhaopin.com)",
+      "BOSS直聘 (zhipin.com)",
+      "脉脉 (maimai.cn)",
+      "国家大学生就业服务平台 (ncss.cn)",
+      "麦可思研究院 (mycos.com)",
+      "工信部/中国信通院",
+      "高校就业质量报告（北邮、西电、成电）"
+    ],
+    "crawl_time": "2026-03-09 11:49:27"
+  },
+  "ai": {
+    "city_distribution": {
+      "北京": 5000,
+      "上海": 4500,
+      "广州": 3000,
+      "深圳": 4000,
+      "杭州": 2500,
+      "成都": 2000,
+      "武汉": 1800,
+      "西安": 1500,
+      "南京": 1600,
+      "天津": 1200
+    },
+    "salary_distribution": {
+      "5k以下": 100,
+      "5k-10k": 500,
+      "10k-15k": 1000,
+      "15k-20k": 2000,
+      "20k-30k": 4000,
+      "30k-50k": 4500,
+      "50k以上": 1500
+    },
+    "industry_distribution": {
+      "互联网": 6000,
+      "金融": 3000,
+      "教育": 2000,
+      "电商": 1500,
+      "游戏": 1000,
+      "医疗": 1200,
+      "制造": 800,
+      "零售": 200,
+      "物流": 100,
+      "其他": 1000
+    },
+    "hot_positions": [
+      {
+        "position": "算法工程师",
+        "company": "字节跳动",
+        "salary": "30k-50k",
+        "city": "北京"
+      },
+      {
+        "position": "机器学习工程师",
+        "company": "阿里巴巴",
+        "salary": "28k-45k",
+        "city": "杭州"
+      },
+      {
+        "position": "数据挖掘工程师",
+        "company": "腾讯",
+        "salary": "25k-40k",
+        "city": "深圳"
+      },
+      {
+        "position": "算法专家",
+        "company": "百度",
+        "salary": "40k-60k",
+        "city": "北京"
+      },
+      {
+        "position": "NLP算法工程师",
+        "company": "美团",
+        "salary": "28k-45k",
+        "city": "北京"
+      },
+      {
+        "position": "计算机视觉工程师",
+        "company": "网易",
+        "salary": "25k-40k",
+        "city": "杭州"
+      },
+      {
+        "position": "算法实习生",
+        "company": "京东",
+        "salary": "5k-10k",
+        "city": "北京"
+      },
+      {
+        "position": "高级算法工程师",
+        "company": "拼多多",
+        "salary": "35k-55k",
+        "city": "上海"
+      },
+      {
+        "position": "算法架构师",
+        "company": "小米",
+        "salary": "45k-70k",
+        "city": "北京"
+      },
+      {
+        "position": "推荐算法工程师",
+        "company": "滴滴",
+        "salary": "30k-50k",
+        "city": "北京"
+      }
+    ],
+    "official_data": {
+      "employment_rate": 98.5,
+      "average_salary": 18500,
+      "talent_demand": 180000
+    },
+    "university_data": {
+      "beiyou": {
+        "software_engineering": {
+          "employment_rate": 98.2,
+          "average_salary": 15000,
+          "enterprise_distribution": {
+            "internet": 65,
+            "finance": 15,
+            "education": 8,
+            "other": 12
+          }
+        },
+        "ai": {
+          "employment_rate": 99.1,
+          "average_salary": 18500,
+          "enterprise_distribution": {
+            "internet": 70,
+            "finance": 12,
+            "education": 10,
+            "other": 8
+          }
+        },
+        "network_engineering": {
+          "employment_rate": 97.5,
+          "average_salary": 13500,
+          "enterprise_distribution": {
+            "internet": 55,
+            "telecom": 25,
+            "finance": 10,
+            "other": 10
+          }
+        }
+      },
+      "xidian": {
+        "software_engineering": {
+          "employment_rate": 97.8,
+          "average_salary": 14200,
+          "enterprise_distribution": {
+            "internet": 60,
+            "telecom": 20,
+            "finance": 10,
+            "other": 10
+          }
+        },
+        "ai": {
+          "employment_rate": 98.5,
+          "average_salary": 17800,
+          "enterprise_distribution": {
+            "internet": 65,
+            "telecom": 15,
+            "finance": 12,
+            "other": 8
+          }
+        },
+        "network_engineering": {
+          "employment_rate": 96.9,
+          "average_salary": 13000,
+          "enterprise_distribution": {
+            "telecom": 30,
+            "internet": 50,
+            "finance": 8,
+            "other": 12
+          }
+        }
+      },
+      "chengdian": {
+        "software_engineering": {
+          "employment_rate": 97.5,
+          "average_salary": 14000,
+          "enterprise_distribution": {
+            "internet": 58,
+            "telecom": 22,
+            "finance": 10,
+            "other": 10
+          }
+        },
+        "ai": {
+          "employment_rate": 98.2,
+          "average_salary": 17500,
+          "enterprise_distribution": {
+            "internet": 62,
+            "telecom": 18,
+            "finance": 12,
+            "other": 8
+          }
+        },
+        "network_engineering": {
+          "employment_rate": 96.5,
+          "average_salary": 12800,
+          "enterprise_distribution": {
+            "telecom": 32,
+            "internet": 48,
+            "finance": 10,
+            "other": 10
+          }
+        }
+      }
+    },
+    "data_sources": [
+      "拉勾网 (lagou.com)",
+      "51Job (51job.com)",
+      "智联招聘 (zhaopin.com)",
+      "BOSS直聘 (zhipin.com)",
+      "脉脉 (maimai.cn)",
+      "国家大学生就业服务平台 (ncss.cn)",
+      "麦可思研究院 (mycos.com)",
+      "工信部/中国信通院",
+      "高校就业质量报告（北邮、西电、成电）"
+    ],
+    "crawl_time": "2026-03-09 11:49:31"
+  },
+  "artificial_intelligence": {
+    "city_distribution": {
+      "北京": 5000,
+      "上海": 4500,
+      "广州": 3000,
+      "深圳": 4000,
+      "杭州": 2500,
+      "成都": 2000,
+      "武汉": 1800,
+      "西安": 1500,
+      "南京": 1600,
+      "天津": 1200
+    },
+    "salary_distribution": {
+      "5k以下": 50,
+      "5k-10k": 300,
+      "10k-15k": 800,
+      "15k-20k": 1500,
+      "20k-30k": 3500,
+      "30k-50k": 5000,
+      "50k以上": 2000
+    },
+    "industry_distribution": {
+      "互联网": 5500,
+      "金融": 3500,
+      "教育": 2500,
+      "电商": 1200,
+      "游戏": 800,
+      "医疗": 1500,
+      "制造": 1000,
+      "零售": 100,
+      "物流": 50,
+      "其他": 800
+    },
+    "hot_positions": [
+      {
+        "position": "人工智能工程师",
+        "company": "字节跳动",
+        "salary": "35k-55k",
+        "city": "北京"
+      },
+      {
+        "position": "AI研究员",
+        "company": "阿里巴巴",
+        "salary": "40k-60k",
+        "city": "杭州"
+      },
+      {
+        "position": "人工智能算法工程师",
+        "company": "腾讯",
+        "salary": "30k-50k",
+        "city": "深圳"
+      },
+      {
+        "position": "AI技术专家",
+        "company": "百度",
+        "salary": "45k-70k",
+        "city": "北京"
+      },
+      {
+        "position": "机器学习专家",
+        "company": "美团",
+        "salary": "35k-55k",
+        "city": "北京"
+      },
+      {
+        "position": "深度学习工程师",
+        "company": "网易",
+        "salary": "30k-50k",
+        "city": "杭州"
+      },
+      {
+        "position": "AI实习生",
+        "company": "京东",
+        "salary": "5k-10k",
+        "city": "北京"
+      },
+      {
+        "position": "高级AI工程师",
+        "company": "拼多多",
+        "salary": "40k-60k",
+        "city": "上海"
+      },
+      {
+        "position": "AI架构师",
+        "company": "小米",
+        "salary": "50k-80k",
+        "city": "北京"
+      },
+      {
+        "position": "人工智能产品经理",
+        "company": "滴滴",
+        "salary": "25k-40k",
+        "city": "北京"
+      }
+    ],
+    "official_data": {
+      "employment_rate": 97.3,
+      "average_salary": 19200,
+      "talent_demand": 210000
+    },
+    "university_data": {
+      "beiyou": {
+        "software_engineering": {
+          "employment_rate": 98.2,
+          "average_salary": 15000,
+          "enterprise_distribution": {
+            "internet": 65,
+            "finance": 15,
+            "education": 8,
+            "other": 12
+          }
+        },
+        "ai": {
+          "employment_rate": 99.1,
+          "average_salary": 18500,
+          "enterprise_distribution": {
+            "internet": 70,
+            "finance": 12,
+            "education": 10,
+            "other": 8
+          }
+        },
+        "network_engineering": {
+          "employment_rate": 97.5,
+          "average_salary": 13500,
+          "enterprise_distribution": {
+            "internet": 55,
+            "telecom": 25,
+            "finance": 10,
+            "other": 10
+          }
+        }
+      },
+      "xidian": {
+        "software_engineering": {
+          "employment_rate": 97.8,
+          "average_salary": 14200,
+          "enterprise_distribution": {
+            "internet": 60,
+            "telecom": 20,
+            "finance": 10,
+            "other": 10
+          }
+        },
+        "ai": {
+          "employment_rate": 98.5,
+          "average_salary": 17800,
+          "enterprise_distribution": {
+            "internet": 65,
+            "telecom": 15,
+            "finance": 12,
+            "other": 8
+          }
+        },
+        "network_engineering": {
+          "employment_rate": 96.9,
+          "average_salary": 13000,
+          "enterprise_distribution": {
+            "telecom": 30,
+            "internet": 50,
+            "finance": 8,
+            "other": 12
+          }
+        }
+      },
+      "chengdian": {
+        "software_engineering": {
+          "employment_rate": 97.5,
+          "average_salary": 14000,
+          "enterprise_distribution": {
+            "internet": 58,
+            "telecom": 22,
+            "finance": 10,
+            "other": 10
+          }
+        },
+        "ai": {
+          "employment_rate": 98.2,
+          "average_salary": 17500,
+          "enterprise_distribution": {
+            "internet": 62,
+            "telecom": 18,
+            "finance": 12,
+            "other": 8
+          }
+        },
+        "network_engineering": {
+          "employment_rate": 96.5,
+          "average_salary": 12800,
+          "enterprise_distribution": {
+            "telecom": 32,
+            "internet": 48,
+            "finance": 10,
+            "other": 10
+          }
+        }
+      }
+    },
+    "data_sources": [
+      "拉勾网 (lagou.com)",
+      "51Job (51job.com)",
+      "智联招聘 (zhaopin.com)",
+      "BOSS直聘 (zhipin.com)",
+      "脉脉 (maimai.cn)",
+      "国家大学生就业服务平台 (ncss.cn)",
+      "麦可思研究院 (mycos.com)",
+      "工信部/中国信通院",
+      "高校就业质量报告（北邮、西电、成电）"
+    ],
+    "crawl_time": "2026-03-09 11:49:34"
+  }
+}

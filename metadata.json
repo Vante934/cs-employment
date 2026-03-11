@@ -1,0 +1,5 @@
+{
+  "name": "计算机毕业生就业数据平台",
+  "description": "基于ECharts的计算机专业毕业生就业数据可视化分析平台，包含大屏展示、数据轮播、多维度对比及专业方向深度解析。",
+  "requestFramePermissions": []
+}
