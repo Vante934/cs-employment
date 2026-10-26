@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>计算机毕业生就业数据平台</title>
+    <link rel="stylesheet" href="./css/style.css">
+    <!-- 引入 ECharts 和 WordCloud -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script>
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <header>
+        <h1 id="nav-home">计算机就业分析</h1>
+        <nav>
+            <a data-nav="城市分布">城市分布</a>
+            <a data-nav="平均薪资">平均薪资</a>
+            <a data-nav="行业分布">行业分布</a>
+            <a data-nav="热门岗位">热门岗位</a>
+        </nav>
+    </header>
+
+    <main>
+        <!-- 首页视图 -->
+        <div id="view-home" class="view active">
+            <!-- 轮播图 -->
+            <section class="carousel">
+                <div class="carousel-inner">
+                    <div class="carousel-item"><img src="img/img1.png" alt="Slide 1"></div>
+                    <div class="carousel-item"><img src="img/img2.png" alt="Slide 2"></div>
+                    <div class="carousel-item"><img src="img/main.png" alt="Slide 3"></div>
+                    <div class="carousel-item"><img src="img/img3.png" alt="Slide 4"></div>
+                    <div class="carousel-item"><img src="img/img4.png" alt="Slide 5"></div>
+                </div>
+                <button class="carousel-btn prev" onclick="prevSlide()">&#10094;</button>
+                <button class="carousel-btn next" onclick="nextSlide()">&#10095;</button>
+                <div class="carousel-indicators">
+                    <button class="carousel-indicator active" onclick="goToSlide(0)"></button>
+                    <button class="carousel-indicator" onclick="goToSlide(1)"></button>
+                    <button class="carousel-indicator" onclick="goToSlide(2)"></button>
+                    <button class="carousel-indicator" onclick="goToSlide(3)"></button>
+                    <button class="carousel-indicator" onclick="goToSlide(4)"></button>
+                </div>
+				
+						
+				
+            </section>
+
+            <!-- 5个方向矩形框 -->
+            <section class="directions">
+                <h2>计算机专业核心方向</h2>
+                <div class="cards-grid">
+                  <div class="card" style="background: linear-gradient(to bottom right, #3b82f6, #FFFFFF); "  data-dir="前端开发">
+                        <div class="card-icon-bg"><img src="img/front.png" alt="前端开发图标"></div>
+                        <div class="card-content">
+                            <div class="card-icon"><img src="img/front.png" alt="前端开发图标"></div>
+                            <h3>前端开发</h3>
+                            <p>Web/小程序/跨平台</p>
+                        </div>
+                        <div class="card-link">查看详情 <span>&rarr;</span></div>
+                    </div>
+                  <div class="card" style="background: linear-gradient(to bottom right, #6366f1, #FFFFFF);" data-dir="后端开发">
+                        <div class="card-icon-bg"><img src="img/backend.png" alt="后端开发图标"></div>
+                        <div class="card-content">
+                            <div class="card-icon"><img src="img/backend.png" alt="后端开发图标"></div>
+                            <h3>后端开发</h3>
+                            <p>Java/Go/C++/架构</p>
+                        </div>
+                        <div class="card-link">查看详情 <span>&rarr;</span></div>
+                    </div>
+                  <div class="card" style="background: linear-gradient(to bottom right, #a855f7, #FFFFFF);" data-dir="人工智能">
+                        <div class="card-icon-bg"><img src="img/AI.png" alt="人工智能图标"></div>
+                        <div class="card-content">
+                            <div class="card-icon"><img src="img/AI.png" alt="人工智能图标"></div>
+                            <h3>人工智能</h3>
+                            <p>深度学习/大模型/CV</p>
+                        </div>
+                        <div class="card-link">查看详情 <span>&rarr;</span></div>
+                    </div>
+                  <div class="card" style="background: linear-gradient(to bottom right, #06b6d4, #FFFFFF);" data-dir="数据分析">
+                        <div class="card-icon-bg"><img src="img/data.png" alt="数据分析图标"></div>
+                        <div class="card-content">
+                            <div class="card-icon"><img src="img/data.png" alt="数据分析图标"></div>
+                            <h3>数据分析</h3>
+                            <p>数据挖掘/BI/大数据</p>
+                        </div>
+                        <div class="card-link">查看详情 <span>&rarr;</span></div>
+                    </div>
+                  <div class="card" style="background: linear-gradient(to bottom right, #14b8a6, #FFFFFF);" data-dir="算法工程">
+                        <div class="card-icon-bg"><img src="img/analyze.png" alt="算法图标"></div>
+                        <div class="card-content">
+                            <div class="card-icon"><img src="img/analyze.png" alt="算法图标"></div>
+                            <h3>算法工程</h3>
+                            <p>推荐系统/搜索/NLP</p>
+                        </div>
+                        <div class="card-link">查看详情 <span>&rarr;</span></div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- 数据大屏视图 -->
+        <div id="view-dashboard" class="view">
+            <div class="dashboard-layout">
+                <div class="sidebar" id="role-sidebar">
+                    <button class="active" data-role="前端">前端</button>
+                    <button data-role="后端">后端</button>
+                    <button data-role="人工智能">人工智能</button>
+                    <button data-role="算法">算法</button>
+                    <button data-role="测试">测试</button>
+                    <button data-role="运维">运维</button>
+                    <button data-role="数据分析">数据分析</button>
+                    <button data-role="产品经理">产品经理</button>
+                </div>
+                <div class="main-chart">
+                    <h2 id="dashboard-title">2023年 前端 城市分布统计</h2>
+                    <div id="chart-container"></div>
+                    <div class="chart-footer">● 数据来源：教育部及各大招聘网站</div>
+                </div>
+                <div class="sidebar" id="year-sidebar">
+                    <button data-year="2020">2020</button>
+                    <button data-year="2021">2021</button>
+                    <button data-year="2022">2022</button>
+                    <button class="active" data-year="2023">2023</button>
+                    <button data-year="2024">2024</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 专业详情视图 -->
+        <div id="view-detail" class="view">
+            <div class="detail-hero">
+                <img id="detail-hero-img" src="" alt="Hero">
+                <div class="detail-hero-overlay">
+                    <h2 id="detail-title">前端开发方向</h2>
+                </div>
+            </div>
+            <div class="detail-content">
+                <div class="detail-tabs" id="detail-tabs">
+                    <!-- 动态生成 -->
+                </div>
+                <div class="detail-main">
+                    <div class="detail-header-row">
+                        <h3 id="detail-content-title">2024年 前端开发方向分析报告</h3>
+                        <div class="year-selector-container">
+                            <label>毕业年份</label>
+                            <select id="detail-year-select" class="year-selector">
+                                <option value="2024">2024</option>
+                                <option value="2023">2023</option>
+                                <option value="2022">2022</option>
+                                <option value="2021">2021</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div id="pane-direction" class="detail-pane">
+                        <p id="pane-direction-text"></p>
+                    </div>
+                    <div id="pane-intro" class="detail-pane">
+                        <p>本专业方向旨在培养具备扎实计算机基础，精通现代开发技术的复合型人才。</p>
+                        <p style="margin-top: 16px;">毕业生能够胜任各类互联网企业的研发工作，具备良好的团队协作能力、系统设计能力和持续学习能力。课程涵盖数据结构、计算机网络、操作系统以及前沿的开发栈。</p>
+                    </div>
+                    <div id="pane-tech" class="detail-pane">
+                        <p>以下是该方向的核心技术难度雷达图：</p>
+                        <div id="detail-tech-chart"></div>
+                    </div>
+                    <div id="pane-salary" class="detail-pane">
+                        <p>以下是该方向近五年的年薪增长趋势（双轴折线图）：</p>
+                        <div id="detail-salary-chart"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+	
+	<footer class="site-footer">
+  <div class="footer-container">
+    <!-- 左侧信息区 -->
+    <div class="footer-left">
+      <p>数据来源: 招聘平台 ：拉勾网、51Job、智联招聘、BOSS直聘、脉脉</p>
+	  <p>官方数据源 ：国家大学生就业服务平台、麦可思研究院、工信部/中国信通院 </p>
+      <p>技术支持: 网络信息与数据服务中心</p>
+    </div> 
+  </div>
+</footer>
+    <script src="./js/data.js"></script>
+    <script src="./js/main.js"></script>
+</body>
+</html>

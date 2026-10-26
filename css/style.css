@@ -1,0 +1,202 @@
+/* Reset & Base */
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+body { background-color: #f8fafc; color: #1e293b; overflow-x: hidden; padding-top: 64px; }
+
+/* Header */
+header { position: fixed; top: 0; left: 0; right: 0; height: 94px; background: rgba(30, 58, 138, 0.8); backdrop-filter: blur(12px); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; z-index: 1000; color: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+header h1 { font-size: 30px; font-weight: bold;  cursor: pointer; transition: color 0.3s;text-decoration: none; }
+header h1:hover { color: #bfdbfe; text-decoration:none;}
+header nav { display: flex; gap: 35px; }
+header nav a { color: white; text-decoration: none; font-size: 20px; font-weight: 500; cursor: pointer; transition: all 0.3s; padding-bottom: 4px; border-bottom: 2px solid transparent; }
+header nav a:hover { color: #bfdbfe; text-decoration: underline;}
+header nav a.active { color: #93c5fd; border-bottom-color: #93c5fd; }
+
+
+/* Views */
+.view { display: none; min-height:100vh; }
+.view.active { display: block; animation: fadeIn 0.5s ease; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Carousel */
+.carousel { position: relative; height: 100vh;overflow: hidden; background: #0f172a; }
+/* 兼容小屏幕：满屏但留出header空间 */
+@media (max-width: 768px) {
+  .carousel {
+    height: calc(100vh - 84px); /* 手机端直接占满剩余高度 */
+    margin-top: 84px;
+  }
+}
+.carousel-inner { display: flex; height: 100%; transition: transform 0.7s ease-in-out; }
+.carousel-item { min-width: 100%; height: 100%; position: relative; }
+.carousel-item img { width: 100%; height: 100%; object-fit: cover; }
+.carousel-item::after { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,0.2); }
+.carousel-btn { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.2); color: white; border: none; width: 48px; height: 48px; border-radius: 50%; cursor: pointer; z-index: 10; font-size: 24px; transition: background 0.3s; backdrop-filter: blur(4px); }
+.carousel-btn:hover { background: rgba(0,0,0,0.5); }
+.carousel-btn.prev { left: 24px; }
+.carousel-btn.next { right: 24px; }
+.carousel-indicators { position: absolute; bottom: 96px; left: 50%; transform: translateX(-50%); display: flex; gap: 16px; z-index: 10; }
+.carousel-indicator { width: 12px; height: 12px; border-radius: 50%; background: rgba(255,255,255,0.6); border: none; cursor: pointer; transition: all 0.3s; }
+.carousel-indicator:hover { background: white; }
+.carousel-indicator.active { background: #3b82f6; transform: scale(1.5); box-shadow: 0 0 10px rgba(59,130,246,0.8); }
+
+/* Direction Cards */
+.directions { max-width: 1600px; margin: 64px auto; padding: 0 32px; }
+.directions h2 { text-align: center; font-size: 60px; font-weight: 800; color: #1e3a8a; margin-bottom:250px;  letter-spacing: 1px; }
+
+.directions h2 { 
+  text-align: center; 
+  font-size: 80px; 
+  font-weight: 800; 
+  color: #1e3a8a; 
+  margin-bottom: 250px; 
+  margin-top: 150px;
+  letter-spacing: 8px; 
+}
+
+/* 卡片网格布局（保留） */
+.cards-grid { 
+  display: grid; 
+  grid-template-columns: repeat(5, 1fr); 
+  gap: 24px; 
+}
+
+/* 卡片核心样式（修正重复属性+错误） */
+.card {  
+  border-radius: 16px; /* 统一用16px圆角，删除重复的8px */
+  padding: 24px; /* 统一用24px内边距，删除重复的16px */
+  color: white; 
+  cursor: pointer; 
+  transition: all 0.3s ease; /* 加ease更丝滑 */
+  positio  justify-content: space-between;  
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+  /* 新增：避免文字被图标遮挡 */
+  z-index: 1;
+}
+
+/* 卡片悬浮效果（保留，微调阴影更自然） */
+.card:hover { 
+  transform: translateY(-12px); 
+  box-shadow: 0 20px 25px -5px rgba(59, 130, 246, 0.3); 
+}
+
+/* 卡片背景图标样式（修正缩放语法+布局） */
+.card-icon-bg img { 
+  position: absolute; 
+  right: 16px; 
+  top: 16px; 
+  width: 60px;
+  height: 60px;
+  object-fit: contain; 
+  transition: transform 0.5s ease; /* 加ease过渡 */
+  opacity: 0.2; /* 背景图标半透明，不抢内容 */
+  z-index: 0; /* 放在卡片下层，避免遮挡文字 */
+}
+
+/* 修正：卡片悬浮时图标缩放（原选择器写错+语法错） */
+.card:hover .card-icon-bg img { 
+  transform: scale(1.1); /* 正确的缩放语法 */
+}
+.card-content { position: relaive; z-index: 10; }
+.card-icon { font-size: 36px; margin-bottom: 16px; }
+.card h3 { font-size: 80px; font-weight: bold; margin-bottom: 10px; }
+.card p { font-size: 18px; font-weight: 500; opacity: 0.9; }
+.card-link { position: relative; z-index: 10; font-size: 16px; font-weight: bold; color: rgba(255,255,255,0.8); transition: color 0.3s; display: flex; align-items: center; margin-top: 16px; }
+.card:hover .card-link { color: white; }
+.card-link span { margin-left: 8px; transition: transform 0.3s; }
+.card:hover .card-link span { transform: translateX(8px); }
+
+/* Dashboard */
+.dashboard-layout { display: flex; max-width: 1600px; margin: 48px auto 0; padding: 24px; gap: 24px; height: calc(100vh - 112px); }
+.sidebar { width: 224px; background: white; border-radius: 16px; padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #dbeafe; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+.sidebar button { padding: 16px; border: 2px solid transparent; background: #f8fafc; border-radius: 12px; cursor: pointer; font-size: 16px; font-weight: 500; color: #334155; transition: all 0.3s; text-align: center; }
+.sidebar button:hover { border-color: #93c5fd; background: #eff6ff; }
+.sidebar button.active { background: #2563eb; color: white; border-color: #2563eb; box-shadow: 0 4px 6px rgba(37,99,235,0.2); }
+.main-chart { flex: 1; background: white; border-radius: 16px; padding: 24px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #dbeafe; display: flex; flex-direction: column; position: relative; }
+.main-chart h2 { text-align: center; color: #1e3a8a; font-size: 24px; font-weight: 800; margin-bottom: 24px; letter-spacing: 1px; }
+#chart-container { flex: 1; width: 100%; min-height: 400px; }
+.chart-footer { position: absolute; bottom: 16px; left: 0; right: 0; text-align: center; font-size: 14px; color: #94a3b8; font-weight: 500; }
+
+/* Detail */
+.detail-hero { height: 400px; position: relative; }
+.detail-hero img { width: 100%; height: 100%; object-fit: cover; }
+.detail-hero-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0.3), transparent); display: flex; align-items: flex-end; padding: 64px; }
+.detail-hero h2 { color: white; font-size: 60px; font-weight: 900; letter-spacing: 2px; text-shadow: 0 10px 15px rgba(0,0,0,0.5); }
+
+.detail-content { max-width: 1600px; margin: 0 auto; padding: 48px 32px; display: flex; gap: 40px; }
+.detail-tabs { width: 288px; display: flex; flex-direction: column; gap: 16px; }
+.detail-tabs button { padding: 20px 32px; text-align: left; font-size: 20px; font-weight: 700; background: white; border: 2px solid #dbeafe; border-radius: 16px; cursor: pointer; transition: all 0.3s; color: #1e40af; }
+.detail-tabs button:hover { border-color: #60a5fa; background: #eff6ff; transform: translateX(4px); }
+.detail-tabs button.active { background: #2563eb; color: white; border-color: #2563eb; box-shadow: 0 10px 15px -3px rgba(37,99,235,0.2); transform: translateX(16px); }
+
+.detail-main { flex: 1; background: white; border-radius: 24px; padding: 48px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); border: 1px solid #dbeafe; min-height: 600px; position: relative; overflow: hidden; }
+.detail-main::before { content: ''; position: absolute; top: 0; right: 0; width: 384px; height: 384px; background: #eff6ff; border-radius: 50%; transform: translate(30%, -50%); filter: blur(40px); z-index: 0; pointer-events: none; }
+
+.detail-header-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; position: relative; z-index: 10; }
+.detail-main h3 { font-size: 36px; font-weight: 900; color: #1e3a8a; letter-spacing: -0.5px; }
+.year-selector-container { display: flex; align-items: center; gap: 16px; }
+.year-selector-container label { font-size: 18px; font-weight: bold; color: #1e40af; }
+.year-selector { padding: 12px 24px; font-size: 18px; font-weight: bold; border-radius: 8px; border: 2px solid #93c5fd; color: #1e3a8a; background: white; cursor: pointer; outline: none; transition: border-color 0.3s, box-shadow 0.3s; }
+.year-selector:focus { border-color: #2563eb; box-shadow: 0 0 0 4px #dbeafe; }
+
+.detail-pane { display: none; font-size: 20px; line-height: 1.8; color: #475569; position: relative; z-index: 10; }
+.detail-pane.active { display: block; animation: fadeIn 0.5s ease; }
+#detail-tech-chart, #detail-salary-chart { width: 100%; height: 450px; margin-top: 24px; }
+
+/* 页脚整体样式 */
+.site-footer {
+  background-color: #485FA1; /* 深蓝背景，贴合你的蓝白主题 */
+  color: #ffffff;            /* 白色文字 */
+  padding: 30px 0;
+  font-family: "Microsoft Yahei", sans-serif;
+  margin-top: 500px; /* 与上方内容拉开间距，避免拥挤 */
+}
+
+/* 容器：控制宽度并居中 */
+.footer-container {
+  width: 90%;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: flex-start; /* 修正：仅左侧内容，无需 space-between */
+  align-items: flex-start;     /* 修正：文字顶部对齐，更自然 */
+  flex-wrap: wrap;             /* 响应式：小屏幕自动换行 */
+}
+
+/* 左侧文本区 */
+.footer-left {
+  width: 100%; /* 独占一行，适配单栏布局 */
+}
+.footer-left p {
+  margin: 8px 0; /* 缩小行间距，更紧凑 */
+  font-size: 19px; /* 调整字号，更适配页脚视觉 */
+  line-height: 1.8;
+  color: #cbd5e1; /* 浅灰色文字，比纯白更柔和 */
+}
+
+/* 响应式适配：小屏幕优化 */
+@media (max-width: 768px) {
+  .footer-container {
+    flex-direction: column;
+    gap: 20px; /* 缩小间距，适配小屏幕 */
+  }
+  .footer-left {
+    width: 100%;
+    text-align: center; /* 手机端文字居中 */
+  }
+  .footer-left p {
+    font-size: 13px; /* 小屏幕字号更小 */
+  }
+}
+
+/* 卡片网格响应式（保留你的原有逻辑，补充闭合） */
+@media (max-width : 959px ){
+  .cards-grid { grid-template-columns: repeat(2, 1fr); }
+  .dashboard-layout { flex-direction: column; height: auto; }
+  .sidebar { width: 100%; flex-direction: row; overflow-x: auto; }
+  .detail-content { flex-direction: column; }
+  .detail-tabs { width: 100%; flex-direction: row; overflow-x: auto; }
+  .detail-tabs button { flex: 1; text-align: center; }
+  .detail-tabs button.active { transform: translateY(-4px); }
+
+
+  }

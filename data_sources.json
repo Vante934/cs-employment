@@ -1,0 +1,103 @@
+{
+  "crawl_time": "2026-03-11 19:16:49",
+  "sources": [
+    {
+      "source": "教育部大学生就业服务平台",
+      "url": "https://www.ncss.cn/",
+      "status": "success",
+      "data_count": 0,
+      "timestamp": "2026-03-11 19:16:33"
+    },
+    {
+      "source": "麦可思研究院",
+      "url": "https://www.mycos.com.cn/",
+      "status": "failed: HTTPSConnectionPool(host='www.mycos.com.cn', port=443): Max retries exceeded with url: / (Caused by SSLError(SSLCertVerificationError(1, \"[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'www.mycos.com.cn'. (_ssl.c:1000)\")))",
+      "data_count": 0,
+      "timestamp": "2026-03-11 19:16:33"
+    },
+    {
+      "source": "工信部人才交流中心",
+      "url": "https://www.miitec.org.cn/",
+      "status": "success",
+      "data_count": 0,
+      "timestamp": "2026-03-11 19:16:34"
+    },
+    {
+      "source": "清华大学就业中心",
+      "url": "https://career.tsinghua.edu.cn/",
+      "status": "success",
+      "data_count": 0,
+      "timestamp": "2026-03-11 19:16:34"
+    },
+    {
+      "source": "北京大学就业中心",
+      "url": "https://scc.pku.edu.cn/",
+      "status": "success",
+      "data_count": 0,
+      "timestamp": "2026-03-11 19:16:37"
+    },
+    {
+      "source": "浙江大学就业中心",
+      "url": "http://www.career.zju.edu.cn/",
+      "status": "success",
+      "data_count": 0,
+      "timestamp": "2026-03-11 19:16:39"
+    },
+    {
+      "source": "上海交通大学就业中心",
+      "url": "https://www.job.sjtu.edu.cn/",
+      "status": "success",
+      "data_count": 0,
+      "timestamp": "2026-03-11 19:16:42"
+    },
+    {
+      "source": "西安电子科技大学就业中心",
+      "url": "https://job.xidian.edu.cn/",
+      "status": "success",
+      "data_count": 0,
+      "timestamp": "2026-03-11 19:16:44"
+    },
+    {
+      "source": "电子科技大学就业中心",
+      "url": "https://jiuye.uestc.edu.cn/",
+      "status": "success",
+      "data_count": 0,
+      "timestamp": "2026-03-11 19:16:46"
+    },
+    {
+      "source": "拉勾网",
+      "url": "https://www.lagou.com/wn/",
+      "status": "success",
+      "data_count": 0,
+      "timestamp": "2026-03-11 19:16:48"
+    },
+    {
+      "source": "前程无忧",
+      "url": "https://www.51job.com/",
+      "status": "success",
+      "data_count": 0,
+      "timestamp": "2026-03-11 19:16:48"
+    },
+    {
+      "source": "智联招聘",
+      "url": "https://www.zhaopin.com/",
+      "status": "success",
+      "data_count": 0,
+      "timestamp": "2026-03-11 19:16:48"
+    },
+    {
+      "source": "BOSS直聘",
+      "url": "https://www.zhipin.com/",
+      "status": "success",
+      "data_count": 0,
+      "timestamp": "2026-03-11 19:16:49"
+    },
+    {
+      "source": "脉脉",
+      "url": "https://maimai.cn/",
+      "status": "success",
+      "data_count": 0,
+      "timestamp": "2026-03-11 19:16:49"
+    }
+  ]
+}
