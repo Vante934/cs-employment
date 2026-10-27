@@ -139,7 +139,11 @@ class KnowledgeBaseStore:
         return self._store.run_read(_select)
     
     def delete_file(self, file_id: str) -> None:
-        """Delete a file record (cascades to chunks)."""
+        """Delete a file record (cascades to chunks).
+        
+        Note: This only deletes database records. If using vector index,
+        caller must also call IndexManager.delete_file_index() to clean up vectors.
+        """
         def _delete() -> None:
             with self._store.transaction() as db:
                 db.execute("DELETE FROM kb_files WHERE file_id = ?", (file_id,))
@@ -308,6 +312,94 @@ class KnowledgeBaseStore:
                        ORDER BY chunk_index""",
                     (file_id, start_index)
                 )
+                return [dict(row) for row in cursor.fetchall()]
+        
+        return self._store.run_read(_select)
+    
+    def update_chunk_embedding(
+        self,
+        chunk_id: str,
+        embedding_model: str,
+        vector_index_id: int
+    ) -> None:
+        """Update chunk with embedding metadata.
+        
+        Args:
+            chunk_id: Chunk ID
+            embedding_model: Model name used for embedding
+            vector_index_id: FAISS internal vector ID
+        """
+        def _update() -> None:
+            with self._store.transaction() as db:
+                db.execute(
+                    """UPDATE kb_chunks
+                       SET embedding_model = ?, vector_index_id = ?
+                       WHERE chunk_id = ?""",
+                    (embedding_model, vector_index_id, chunk_id)
+                )
+        
+        self._store.run_write(_update)
+    
+    def clear_chunk_embeddings(self, file_id: str) -> None:
+        """Clear embedding metadata for all chunks of a file.
+        
+        Used when rebuilding index or when file is re-chunked.
+        
+        Args:
+            file_id: File ID
+        """
+        def _clear() -> None:
+            with self._store.transaction() as db:
+                db.execute(
+                    """UPDATE kb_chunks
+                       SET embedding_model = NULL, vector_index_id = NULL
+                       WHERE file_id = ? AND chunk_index >= 1""",
+                    (file_id,)
+                )
+        
+        self._store.run_write(_clear)
+    
+    def clear_chunk_embedding(self, chunk_id: str) -> None:
+        """Clear embedding metadata for one chunk."""
+        def _clear() -> None:
+            with self._store.transaction() as db:
+                db.execute(
+                    """UPDATE kb_chunks
+                       SET embedding_model = NULL, vector_index_id = NULL
+                       WHERE chunk_id = ?""",
+                    (chunk_id,)
+                )
+        
+        self._store.run_write(_clear)
+    
+    def get_all_indexed_chunks(self, embedding_model: str | None = None) -> list[dict[str, Any]]:
+        """Get all chunks with embeddings.
+        
+        Args:
+            embedding_model: Filter by model name (None = all indexed chunks)
+        
+        Returns:
+            List of chunk records
+        """
+        def _select() -> list[dict[str, Any]]:
+            with self._store.transaction(write=False) as db:
+                if embedding_model:
+                    cursor = db.execute(
+                        """SELECT chunk_id, file_id, chunk_text, chunk_index,
+                           embedding_model, vector_index_id
+                           FROM kb_chunks
+                           WHERE chunk_index >= 1 AND embedding_model = ?
+                           ORDER BY file_id, chunk_index""",
+                        (embedding_model,)
+                    )
+                else:
+                    cursor = db.execute(
+                        """SELECT chunk_id, file_id, chunk_text, chunk_index,
+                           embedding_model, vector_index_id
+                           FROM kb_chunks
+                           WHERE chunk_index >= 1 AND embedding_model IS NOT NULL
+                           ORDER BY file_id, chunk_index"""
+                    )
                 return [dict(row) for row in cursor.fetchall()]
         
         return self._store.run_read(_select)
