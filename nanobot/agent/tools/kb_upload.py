@@ -41,7 +41,7 @@ class KBUploadTool(Tool):
         
         # Get KB store from session manager
         sessions: SessionManager = ctx.sessions
-        kb_store = KnowledgeBaseStore(sessions._store)
+        kb_store = KnowledgeBaseStore(sessions.get_sqlite_store())
         
         # Media directory (where feishu downloads files)
         media_dir = get_media_dir("feishu")
@@ -150,13 +150,25 @@ class KBUploadTool(Tool):
         """Copy file to KB storage directory.
         
         Uses hash as filename to avoid conflicts and duplicates.
+        Validates existing files by recomputing hash.
         """
         ext = source.suffix.lower()
         dest = self._kb_files_dir / f"{file_hash}{ext}"
         
-        # If file already exists with same hash, no need to copy
+        # If file already exists, verify hash matches
         if dest.exists():
-            return dest
+            try:
+                existing_hash = self._compute_hash(dest)
+                if existing_hash == file_hash:
+                    return dest  # Safe to reuse
+                else:
+                    # Hash collision - abort without overwriting
+                    raise RuntimeError(
+                        f"Hash collision detected: file exists at {dest} but has different content "
+                        f"(expected: {file_hash}, actual: {existing_hash})"
+                    )
+            except OSError as e:
+                raise RuntimeError(f"Failed to verify existing file: {e}")
         
         # Copy file
         import shutil
@@ -198,6 +210,9 @@ class KBUploadTool(Tool):
         # 6. Copy to KB storage
         try:
             kb_file_path = self._copy_to_kb_storage(resolved, file_hash)
+        except RuntimeError as e:
+            # Hash collision or verification error
+            return ToolResult.error(str(e))
         except OSError as e:
             return ToolResult.error(f"Failed to copy file to storage: {e}")
         

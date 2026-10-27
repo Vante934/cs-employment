@@ -293,3 +293,79 @@ async def test_upload_preserves_original_filename(kb_upload_tool: KBUploadTool, 
     files = kb_store.list_files()
     assert len(files) == 1
     assert files[0]["filename"] == "original_name.xlsx"
+
+
+@pytest.mark.asyncio
+async def test_upload_validates_existing_file_hash(kb_upload_tool: KBUploadTool, media_dir: Path, kb_files_dir: Path):
+    """Test that existing files are validated by hash."""
+    content = b"Original content"
+    file_hash = hashlib.sha256(content).hexdigest()
+    file_path = create_test_file(media_dir, "validate.pdf", content)
+    
+    # First upload
+    result1 = await kb_upload_tool.execute(file_path=str(file_path))
+    assert not getattr(result1, "is_error", False)
+    
+    # Verify file was stored
+    stored_file = kb_files_dir / f"{file_hash}.pdf"
+    assert stored_file.exists()
+    
+    # Second upload with same content - should validate and reuse
+    result2 = await kb_upload_tool.execute(file_path=str(file_path))
+    result2_str = str(result2)
+    assert not getattr(result2, "is_error", False)
+    assert "already exists" in result2_str.lower()
+
+
+@pytest.mark.asyncio
+async def test_upload_detects_hash_collision(kb_upload_tool: KBUploadTool, media_dir: Path, kb_files_dir: Path):
+    """Test that hash collision is detected and rejected."""
+    content = b"Test content for collision"
+    file_hash = hashlib.sha256(content).hexdigest()
+    
+    # Pre-create a corrupted file in KB storage (simulating external corruption)
+    stored_file = kb_files_dir / f"{file_hash}.pdf"
+    stored_file.write_bytes(b"Corrupted different content")
+    
+    # Try to upload a file with the same hash
+    file_path = create_test_file(media_dir, "collision.pdf", content)
+    result = await kb_upload_tool.execute(file_path=str(file_path))
+    
+    # Should detect collision during copy
+    assert getattr(result, "is_error", False)
+    result_str = str(result)
+    assert "hash collision" in result_str.lower() or "failed to copy" in result_str.lower()
+    
+    # Verify original file was not overwritten
+    assert stored_file.read_bytes() == b"Corrupted different content"
+
+
+@pytest.mark.asyncio
+async def test_upload_concurrent_same_file(kb_upload_tool: KBUploadTool, media_dir: Path, kb_files_dir: Path):
+    """Test that concurrent uploads of same file are handled safely."""
+    import asyncio
+    
+    content = b"Concurrent upload content"
+    file_hash = hashlib.sha256(content).hexdigest()
+    file_path = create_test_file(media_dir, "concurrent.pdf", content)
+    
+    # Simulate concurrent uploads
+    results = await asyncio.gather(
+        kb_upload_tool.execute(file_path=str(file_path)),
+        kb_upload_tool.execute(file_path=str(file_path)),
+        kb_upload_tool.execute(file_path=str(file_path)),
+    )
+    
+    # At least one should succeed
+    success_count = sum(1 for r in results if not getattr(r, "is_error", False))
+    assert success_count >= 1
+    
+    # Verify file exists and has correct content
+    stored_file = kb_files_dir / f"{file_hash}.pdf"
+    assert stored_file.exists()
+    assert stored_file.read_bytes() == content
+    
+    # Verify only one DB record exists
+    files = kb_upload_tool._kb_store.list_files()
+    matching_files = [f for f in files if f["file_hash"] == file_hash]
+    assert len(matching_files) == 1

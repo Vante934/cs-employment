@@ -1892,6 +1892,74 @@ class FeishuChannel(BaseChannel):
             return path_str, f"[{msg_type}: {path_str}]"
 
         return None, f"[{msg_type}: download failed]"
+    
+    async def _auto_upload_to_kb(self, file_path: str, sender_id: str | None = None) -> str | None:
+        """Automatically upload document files to knowledge base.
+        
+        Args:
+            file_path: Path to the downloaded file
+            sender_id: Feishu sender ID (optional)
+        
+        Returns:
+            Status message or None if upload was not attempted
+        """
+        from pathlib import Path
+        
+        # Check file extension
+        path = Path(file_path)
+        ext = path.suffix.lower()
+        
+        # Only process supported document types
+        SUPPORTED_EXTS = {".pdf", ".docx", ".txt", ".md", ".xlsx"}
+        if ext not in SUPPORTED_EXTS:
+            return None
+        
+        try:
+            # Import KB upload tool
+            from nanobot.agent.tools.kb_upload import KBUploadTool
+            from nanobot.kb.store import KnowledgeBaseStore
+            from nanobot.config.paths import get_media_dir, get_runtime_subdir
+            from nanobot.config.loader import load_config
+            from nanobot.session.manager import SessionManager
+            
+            # Lazy-load KB tool
+            if not hasattr(self, '_kb_tool'):
+                config = load_config()
+                workspace = config.workspace
+                sessions = SessionManager(workspace)
+                
+                kb_store = KnowledgeBaseStore(sessions.get_sqlite_store())
+                media_dir = get_media_dir("feishu")
+                kb_files_dir = get_runtime_subdir("kb") / "files"
+                kb_files_dir.mkdir(parents=True, exist_ok=True)
+                
+                self._kb_tool = KBUploadTool(
+                    kb_store=kb_store,
+                    media_dir=media_dir,
+                    kb_files_dir=kb_files_dir,
+                )
+            
+            # Execute upload
+            result = await self._kb_tool.execute(file_path=file_path)
+            
+            # Check result
+            if getattr(result, "is_error", False):
+                self.logger.warning("KB upload failed: {}", str(result))
+                return f"⚠️ Knowledge base upload failed: {str(result)}"
+            else:
+                self.logger.info("File uploaded to KB: {}", path.name)
+                # Extract file ID from result
+                result_str = str(result)
+                if "ID:" in result_str:
+                    return "✅ File added to knowledge base successfully"
+                elif "already exists" in result_str.lower():
+                    return "ℹ️ File already in knowledge base"
+                else:
+                    return "✅ File uploaded to knowledge base"
+        
+        except Exception as e:
+            self.logger.exception("Error auto-uploading to KB: {}", e)
+            return f"⚠️ KB upload error: {e}"
 
     _REPLY_CONTEXT_MAX_LEN = 200
 
@@ -2741,6 +2809,12 @@ class FeishuChannel(BaseChannel):
                 )
                 if file_path:
                     media_paths.append(file_path)
+                    
+                    # Auto-upload document files to knowledge base
+                    if msg_type == "file":
+                        kb_result = await self._auto_upload_to_kb(file_path, sender_id)
+                        if kb_result:
+                            content_text = f"{content_text}\n{kb_result}"
 
                 if msg_type == "audio" and file_path:
                     transcription = await self.transcribe_audio(file_path)

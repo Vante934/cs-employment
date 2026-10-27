@@ -444,6 +444,10 @@ class SessionManager:
 
             self._state = SessionState(self._store, on_delete=self._notify_delete, types=self.types)
         return self._state
+    
+    def get_sqlite_store(self) -> SqliteSessionStore:
+        """Return the underlying SQLite store for direct access."""
+        return self._store
 
     def _notify_delete(self, key: str) -> None:
         if self._delete_observer is not None:

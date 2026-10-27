@@ -145,3 +145,84 @@ class KnowledgeBaseStore:
                 db.execute("DELETE FROM kb_files WHERE file_id = ?", (file_id,))
         
         self._store.run_write(_delete)
+    
+    def save_parsed_result(
+        self,
+        file_id: str,
+        text: str,
+        page_count: int | None = None,
+        word_count: int | None = None
+    ) -> None:
+        """Save parsed text and update file status atomically.
+        
+        Stores full text as chunk_index=0 (reserved for complete extracted text).
+        Updates file status to 'parsed' in the same transaction.
+        
+        Args:
+            file_id: File ID
+            text: Extracted text
+            page_count: Number of pages (PDF/DOCX)
+            word_count: Character count
+        """
+        now = datetime.now().isoformat()
+        chunk_id = f"{file_id}_full"
+        
+        def _save() -> None:
+            with self._store.transaction() as db:
+                # 1. Delete existing full-text chunk if exists (for force re-parse)
+                db.execute(
+                    "DELETE FROM kb_chunks WHERE file_id = ? AND chunk_index = 0",
+                    (file_id,)
+                )
+                
+                # 2. Insert new full-text chunk
+                db.execute(
+                    """INSERT INTO kb_chunks (
+                        chunk_id, file_id, chunk_text, chunk_index, created_at
+                    ) VALUES (?, ?, ?, 0, ?)""",
+                    (chunk_id, file_id, text, now)
+                )
+                
+                # 3. Update file status and metadata
+                set_clauses = ["status = ?", "updated_at = ?"]
+                params: list[Any] = ["parsed", now]
+                
+                if page_count is not None:
+                    set_clauses.append("page_count = ?")
+                    params.append(page_count)
+                
+                if word_count is not None:
+                    set_clauses.append("word_count = ?")
+                    params.append(word_count)
+                
+                # Clear error_message on success
+                set_clauses.append("error_message = NULL")
+                
+                params.append(file_id)
+                
+                db.execute(
+                    f"UPDATE kb_files SET {', '.join(set_clauses)} WHERE file_id = ?",
+                    params
+                )
+        
+        self._store.run_write(_save)
+    
+    def get_parsed_text(self, file_id: str) -> str | None:
+        """Get parsed full text for a file.
+        
+        Args:
+            file_id: File ID
+        
+        Returns:
+            Parsed text or None if not found
+        """
+        def _select() -> str | None:
+            with self._store.transaction(write=False) as db:
+                cursor = db.execute(
+                    "SELECT chunk_text FROM kb_chunks WHERE file_id = ? AND chunk_index = 0",
+                    (file_id,)
+                )
+                row = cursor.fetchone()
+                return row[0] if row else None
+        
+        return self._store.run_read(_select)
