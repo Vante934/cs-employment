@@ -226,3 +226,88 @@ class KnowledgeBaseStore:
                 return row[0] if row else None
         
         return self._store.run_read(_select)
+    
+    def count_chunks(self, file_id: str, start_index: int = 1) -> int:
+        """Count chunks for a file starting from given index.
+        
+        Args:
+            file_id: File ID
+            start_index: Starting chunk index (default 1, excluding full text at 0)
+        
+        Returns:
+            Number of chunks
+        """
+        def _count() -> int:
+            with self._store.transaction(write=False) as db:
+                cursor = db.execute(
+                    "SELECT COUNT(*) FROM kb_chunks WHERE file_id = ? AND chunk_index >= ?",
+                    (file_id, start_index)
+                )
+                return cursor.fetchone()[0]
+        
+        return self._store.run_read(_count)
+    
+    def save_chunks(
+        self,
+        file_id: str,
+        chunks: list[str],
+        replace_existing: bool = False
+    ) -> None:
+        """Save text chunks to database.
+        
+        Chunks are stored starting at chunk_index=1.
+        chunk_index=0 is reserved for full text and will NOT be deleted.
+        
+        Args:
+            file_id: File ID
+            chunks: List of text chunks
+            replace_existing: If True, delete old chunks before inserting new ones
+        """
+        now = datetime.now().isoformat()
+        
+        def _save() -> None:
+            with self._store.transaction() as db:
+                if replace_existing:
+                    # Delete old chunks (chunk_index >= 1 only, preserve full text at 0)
+                    db.execute(
+                        "DELETE FROM kb_chunks WHERE file_id = ? AND chunk_index >= 1",
+                        (file_id,)
+                    )
+                
+                # Insert new chunks starting at index 1
+                for idx, chunk_text in enumerate(chunks, start=1):
+                    chunk_id = f"{file_id}_chunk_{idx}"
+                    db.execute(
+                        """INSERT INTO kb_chunks (
+                            chunk_id, file_id, chunk_text, chunk_index,
+                            source_page, source_section, embedding_model, vector_index_id,
+                            created_at
+                        ) VALUES (?, ?, ?, ?, NULL, NULL, NULL, NULL, ?)""",
+                        (chunk_id, file_id, chunk_text, idx, now)
+                    )
+        
+        self._store.run_write(_save)
+    
+    def get_chunks(self, file_id: str, start_index: int = 1) -> list[dict[str, Any]]:
+        """Get chunks for a file.
+        
+        Args:
+            file_id: File ID
+            start_index: Starting chunk index (default 1, excluding full text at 0)
+        
+        Returns:
+            List of chunk records
+        """
+        def _select() -> list[dict[str, Any]]:
+            with self._store.transaction(write=False) as db:
+                cursor = db.execute(
+                    """SELECT chunk_id, chunk_text, chunk_index, source_page, source_section,
+                       embedding_model, vector_index_id, created_at
+                       FROM kb_chunks
+                       WHERE file_id = ? AND chunk_index >= ?
+                       ORDER BY chunk_index""",
+                    (file_id, start_index)
+                )
+                return [dict(row) for row in cursor.fetchall()]
+        
+        return self._store.run_read(_select)
