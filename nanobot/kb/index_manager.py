@@ -227,6 +227,8 @@ class IndexManager:
                 self.kb_store.update_chunk_embeddings(updates)
             except Exception as e:
                 logger.error(f"Failed to update DB metadata: {e}")
+                # Invalidate the cached index; next access will reload from disk
+                self._vector_index = None
                 return IndexBuildResult(
                     success=False,
                     indexed_count=0,
@@ -420,6 +422,9 @@ class IndexManager:
         try:
             self.vector_index.save()
         except Exception as e:
+            logger.error(f"Failed to save index after rebuild_all: {e}")
+            # Invalidate the cached index; next access will reload from disk
+            self._vector_index = None
             return IndexBuildResult(
                 success=False,
                 indexed_count=total_indexed,
@@ -427,8 +432,9 @@ class IndexManager:
                 error=f"Index save failed: {e}"
             )
 
+        # Success only if all files succeeded AND save succeeded
         return IndexBuildResult(
-            success=True,
+            success=(total_failed == 0),
             indexed_count=total_indexed,
             failed_count=total_failed
         )
