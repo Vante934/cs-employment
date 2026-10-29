@@ -523,6 +523,50 @@
 
 ---
 
+## ADR-010: FAISS 索引改用 IndexIDMap2，mapping.json 作为唯一提交点
+
+**状态**: 已接受\
+**日期**: F05-A1\
+**决策者**: 开发团队
+
+### 背景
+
+F04 使用普通 `IndexFlatIP`，`remove()` 只删除映射，向量仍留在 FAISS 中。重启后 `load()` 发现 `ntotal` 与映射数量不一致而报错，`IndexManager` 捕获后调用 `clear()`，下一次 `save()` 会把空索引写回磁盘。删除文件、强制重建、保存失败回滚都会触发。
+
+### 决策
+
+1. 新建索引使用 `faiss.IndexIDMap2(IndexFlatIP)`，`add_with_ids` 写入显式 ID，`remove_ids` 真正删除向量。
+2. `save()` 先把索引写到新的 `faiss-<uuid>.index`，再用临时文件 + `os.replace` 原子替换 `mapping.json`。`mapping.json` 记录 `format`、`index_file`，是唯一提交点。提交成功后才删除旧索引文件。
+3. 加载旧格式（无 `format` 字段，固定文件名 `faiss.index`）时，按映射中的位置 `reconstruct` 有效向量，以相同 ID 迁移到 IDMap2；无映射的位置视为孤儿向量丢弃。迁移结果标记为待保存，旧文件在下次成功保存后删除。
+4. `clear()` 不再重置 `next_faiss_id`；加载时取 `max(next_faiss_id, 已用最大 ID + 1)`。迁移旧格式时也会以旧 FAISS 的 `ntotal` 作为 ID 水位，即使 mapping 为空且 FAISS 中都是孤儿向量也不会复用历史位置。
+5. 加载失败时 `VectorIndex.load()` 不修改实例状态和磁盘文件，`IndexManager.vector_index` 抛出 `RuntimeError`，不再静默清空。
+
+### 理由
+
+- IDMap2 让 `ntotal` 始终等于映射数量，现有一致性校验可以保留并真正起作用。
+- 两个文件无法原子写入，以单个原子替换的文件作为提交点，可保证任何时刻磁盘上的映射都指向一个完整的索引文件。
+- 不修改 SQLite 表结构，旧 `vector_index_id` 在迁移后保持有效。
+
+### 后果
+
+**正面**：删除后重启不再丢失索引；保存失败不会覆盖可用索引；ID 不会被重复分配。
+
+**负面**：
+- 索引损坏时检索不可用，需人工处理后运行 `rebuild_all()`。
+- `os.replace` 之后、`fsync` 目录之前断电，Windows 上无法保证目录项持久化（剩余风险）。
+- 保存后删除旧文件失败只记 warning，会遗留未引用的 `faiss-*.index`，下次保存时再清理。
+
+### 替代方案
+
+- 保留 `IndexFlatIP`，放宽数量校验并在保存时压缩：需要维护位置到 ID 的重排，改动更大。
+- 两个文件依次直接覆盖：中途失败会留下互不匹配的文件。
+
+### 验证方法
+
+`tests/kb/test_kb_index_persistence.py`（真实 faiss-cpu、SQLite、临时目录，确定性向量）。
+
+---
+
 ## 决策总结表
 
 | 编号 | 决策主题 | 选择方案 | 状态 | 风险等级 |
@@ -536,6 +580,7 @@
 | ADR-007 | OCR 支持 | 不支持 | 已接受 | 低 |
 | ADR-008 | Web 管理后台 | 不开发 | 已接受 | 低 |
 | ADR-009 | 多用户支持 | 不支持 | 已接受 | 低 |
+| ADR-010 | FAISS 索引删除与持久化 | IndexIDMap2 + mapping.json 提交点 | 已接受 | 中 |
 
 **风险等级说明**：
 - **低**：决策成熟，风险可控
