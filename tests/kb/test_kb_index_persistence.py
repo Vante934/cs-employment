@@ -133,9 +133,13 @@ def test_delete_file_then_restart_keeps_index(kb_store, index_dir):
     index = restarted.vector_index
     assert index.count() == index._index.ntotal == 1
 
-    results = restarted.search("cherry", top_k=5)
-    assert [r["file_id"] for r in results] == [cherry]
-    assert all(r["file_id"] != apple for r in restarted.search("apple", top_k=5))
+    response = restarted.search("cherry", top_k=5)
+    assert response.success
+    assert [r.file_id for r in response.results] == [cherry]
+
+    response_apple = restarted.search("apple", top_k=5)
+    assert response_apple.success
+    assert all(r.file_id != apple for r in response_apple.results)
 
 
 # --- 4/5: legacy IndexFlatIP migration and orphan handling ---

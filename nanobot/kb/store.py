@@ -424,3 +424,41 @@ class KnowledgeBaseStore:
                 return [dict(row) for row in cursor.fetchall()]
 
         return self._store.run_read(_select)
+
+    def get_chunks_by_ids(self, chunk_ids: list[str]) -> dict[str, dict[str, Any]]:
+        """Get specific chunks by IDs with file metadata.
+
+        Args:
+            chunk_ids: List of chunk IDs to retrieve
+
+        Returns:
+            Dict mapping chunk_id to chunk record with fields:
+            - chunk_id, file_id, chunk_text, chunk_index
+            - source_page, source_section
+            - embedding_model, vector_index_id
+            - filename, file_type (from joined kb_files)
+
+        Note:
+            Returns dict for O(1) lookup. Missing chunks are not included.
+            Order is not preserved - caller must re-sort if needed.
+        """
+        if not chunk_ids:
+            return {}
+
+        def _select() -> dict[str, dict[str, Any]]:
+            with self._store.transaction(write=False) as db:
+                placeholders = ",".join("?" * len(chunk_ids))
+                query = f"""
+                    SELECT
+                        c.chunk_id, c.file_id, c.chunk_text, c.chunk_index,
+                        c.source_page, c.source_section,
+                        c.embedding_model, c.vector_index_id,
+                        f.filename, f.file_type
+                    FROM kb_chunks c
+                    JOIN kb_files f ON c.file_id = f.file_id
+                    WHERE c.chunk_id IN ({placeholders})
+                """
+                cursor = db.execute(query, chunk_ids)
+                return {row["chunk_id"]: dict(row) for row in cursor.fetchall()}
+
+        return self._store.run_read(_select)

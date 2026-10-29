@@ -12,7 +12,7 @@ from loguru import logger
 
 from nanobot.config.paths import get_runtime_subdir
 from nanobot.kb.embedder import Embedder, get_embedder
-from nanobot.kb.index import SearchResult, VectorIndex
+from nanobot.kb.index import VectorIndex
 from nanobot.kb.store import KnowledgeBaseStore
 
 
@@ -23,6 +23,46 @@ class IndexBuildResult:
     indexed_count: int
     failed_count: int
     error: str | None = None
+
+
+@dataclass
+class SearchResult:
+    """Single search result from knowledge base."""
+    # Chunk information
+    chunk_id: str
+    chunk_text: str
+    chunk_index: int
+    similarity: float  # Cosine similarity in [-1.0, 1.0], higher is more similar
+
+    # File metadata
+    file_id: str
+    filename: str
+    file_type: str
+
+    # Optional source location
+    source_page: int | None = None
+    source_section: str | None = None
+
+
+@dataclass
+class SearchResponse:
+    """Response from knowledge base search operation."""
+    success: bool
+    results: list[SearchResult]
+
+    # Search metadata
+    candidate_count: int    # FAISS results before filtering
+    returned_count: int     # Final results after filtering
+
+    # Error information (only if success=False)
+    error_type: str | None = None
+    error_message: str | None = None
+
+    # Error type constants
+    ERROR_INVALID_QUERY = "invalid_query"
+    ERROR_EMBEDDING_FAILED = "embedding_failed"
+    ERROR_SEARCH_FAILED = "search_failed"
+    ERROR_DATABASE_FAILED = "database_failed"
 
 
 class IndexManager:
@@ -76,12 +116,14 @@ class IndexManager:
 
         return self._vector_index
 
-    def build_index_for_file(self, file_id: str, force: bool = False) -> IndexBuildResult:
+    def build_index_for_file(self, file_id: str, force: bool = False, _skip_save: bool = False, _skip_db_update: bool = False) -> IndexBuildResult:
         """Build index for a single file's chunks.
 
         Args:
             file_id: File ID
             force: If True, rebuild even if already indexed
+            _skip_save: Internal parameter to skip save for batch operations
+            _skip_db_update: Internal parameter to skip DB update for batch operations
 
         Returns:
             IndexBuildResult with success status and counts
@@ -154,17 +196,18 @@ class IndexManager:
             if to_remove:
                 for chunk_id in to_remove:
                     self.vector_index.remove(chunk_id)
-                try:
-                    self.vector_index.save()
-                except Exception as e:
-                    logger.error(f"Failed to save index after removing orphans: {e}")
-                    self._vector_index = None
-                    return IndexBuildResult(
-                        success=False,
-                        indexed_count=0,
-                        failed_count=0,
-                        error=f"Index save failed: {e}"
-                    )
+                if not _skip_save:
+                    try:
+                        self.vector_index.save()
+                    except Exception as e:
+                        logger.error(f"Failed to save index after removing orphans: {e}")
+                        self._vector_index = None
+                        return IndexBuildResult(
+                            success=False,
+                            indexed_count=0,
+                            failed_count=0,
+                            error=f"Index save failed: {e}"
+                        )
             return IndexBuildResult(
                 success=True,
                 indexed_count=0,
@@ -202,41 +245,47 @@ class IndexManager:
 
         # Persist changes to FAISS
         if to_remove or newly_added:
-            try:
-                self.vector_index.save()
-            except Exception as e:
-                logger.error(f"Failed to save index: {e}")
-                # Invalidate the cached index; next access will reload from disk
-                self._vector_index = None
-                return IndexBuildResult(
-                    success=False,
-                    indexed_count=0,
-                    failed_count=len(chunks),
-                    error=f"Index save failed: {e}"
-                )
+            if not _skip_save:
+                try:
+                    self.vector_index.save()
+                except Exception as e:
+                    logger.error(f"Failed to save index: {e}")
+                    # Invalidate the cached index; next access will reload from disk
+                    self._vector_index = None
+                    return IndexBuildResult(
+                        success=False,
+                        indexed_count=0,
+                        failed_count=len(chunks),
+                        error=f"Index save failed: {e}"
+                    )
 
         # Update database metadata in a single transaction
-        updates: list[tuple[str, str, int]] = []
-        for chunk in chunks:
-            faiss_id = self.vector_index.get_faiss_id(chunk["chunk_id"])
-            if faiss_id is not None:
-                updates.append((chunk["chunk_id"], self.embedder.model_name, faiss_id))
+        if not _skip_db_update:
+            updates: list[tuple[str, str, int]] = []
+            for chunk in chunks:
+                faiss_id = self.vector_index.get_faiss_id(chunk["chunk_id"])
+                if faiss_id is not None:
+                    updates.append((chunk["chunk_id"], self.embedder.model_name, faiss_id))
 
-        if updates:
-            try:
-                self.kb_store.update_chunk_embeddings(updates)
-            except Exception as e:
-                logger.error(f"Failed to update DB metadata: {e}")
-                # Invalidate the cached index; next access will reload from disk
-                self._vector_index = None
-                return IndexBuildResult(
-                    success=False,
-                    indexed_count=0,
-                    failed_count=len(chunks),
-                    error=f"Database metadata update failed: {e}"
-                )
+            if updates:
+                try:
+                    self.kb_store.update_chunk_embeddings(updates)
+                except Exception as e:
+                    logger.error(f"Failed to update DB metadata: {e}")
+                    # Invalidate the cached index; next access will reload from disk
+                    self._vector_index = None
+                    return IndexBuildResult(
+                        success=False,
+                        indexed_count=0,
+                        failed_count=len(chunks),
+                        error=f"Database metadata update failed: {e}"
+                    )
 
-        indexed_count = len(updates)
+            indexed_count = len(updates)
+        else:
+            # When skipping DB update, count chunks that have FAISS IDs in memory
+            indexed_count = len([c for c in chunks if self.vector_index.get_faiss_id(c["chunk_id"]) is not None])
+
         failed_count = len(chunks) - indexed_count
 
         return IndexBuildResult(
@@ -414,11 +463,16 @@ class IndexManager:
         total_failed = 0
 
         for file_record in files:
-            result = self.build_index_for_file(file_record["file_id"], force=force)
+            result = self.build_index_for_file(
+                file_record["file_id"],
+                force=force,
+                _skip_save=True,
+                _skip_db_update=True
+            )
             total_indexed += result.indexed_count
             total_failed += result.failed_count
 
-        # Save final index
+        # Save final index (single commit point for batch operation)
         try:
             self.vector_index.save()
         except Exception as e:
@@ -432,6 +486,29 @@ class IndexManager:
                 error=f"Index save failed: {e}"
             )
 
+        # Batch update database metadata after FAISS is persisted
+        all_updates: list[tuple[str, str, int]] = []
+        for file_record in files:
+            chunks = self.kb_store.get_chunks(file_record["file_id"], start_index=1)
+            for chunk in chunks:
+                faiss_id = self.vector_index.get_faiss_id(chunk["chunk_id"])
+                if faiss_id is not None:
+                    all_updates.append((chunk["chunk_id"], self.embedder.model_name, faiss_id))
+
+        if all_updates:
+            try:
+                self.kb_store.update_chunk_embeddings(all_updates)
+            except Exception as e:
+                logger.error(f"Failed to update DB metadata after rebuild_all: {e}")
+                # FAISS is already saved; DB update failure means metadata is stale
+                # but will be corrected on next rebuild or individual file index
+                return IndexBuildResult(
+                    success=False,
+                    indexed_count=total_indexed,
+                    failed_count=total_failed,
+                    error=f"Database metadata update failed: {e}"
+                )
+
         # Success only if all files succeeded AND save succeeded
         return IndexBuildResult(
             success=(total_failed == 0),
@@ -439,55 +516,143 @@ class IndexManager:
             failed_count=total_failed
         )
 
-    def search(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
-        """Search for similar chunks.
+    def search(
+        self,
+        query: str,
+        top_k: int = 5,
+        min_similarity: float = 0.0
+    ) -> SearchResponse:
+        """Search knowledge base for similar chunks.
 
         Args:
-            query: Query text
-            top_k: Number of results to return
+            query: Query text (max 10000 chars)
+            top_k: Maximum number of results to return (1-100, default 5)
+            min_similarity: Minimum similarity threshold in [-1.0, 1.0] (default 0.0)
 
         Returns:
-            List of results with chunk info and similarity scores
+            SearchResponse with results, metadata, and status
+
+        Raises:
+            ValueError: If parameters are out of valid range
+
+        Examples:
+            # Normal search
+            response = manager.search("Python tutorial", top_k=10)
+            if response.success:
+                for result in response.results:
+                    print(f"{result.filename}: {result.similarity:.2f}")
+
+            # High-relevance only
+            response = manager.search("API docs", min_similarity=0.7)
+
+            # Error handling
+            response = manager.search("query")
+            if not response.success:
+                print(f"Error: {response.error_message} (type: {response.error_type})")
         """
+        # Parameter validation
         if not query or not query.strip():
-            return []
+            return SearchResponse(
+                success=False,
+                results=[],
+                candidate_count=0,
+                returned_count=0,
+                error_type=SearchResponse.ERROR_INVALID_QUERY,
+                error_message="Empty query"
+            )
+
+        if len(query) > 10000:
+            raise ValueError(f"Query too long: {len(query)} chars (max 10000)")
+
+        if not 1 <= top_k <= 100:
+            raise ValueError(f"Invalid top_k: {top_k} (must be 1-100)")
+
+        if not -1.0 <= min_similarity <= 1.0:
+            raise ValueError(f"Invalid min_similarity: {min_similarity} (must be -1.0 to 1.0)")
 
         # Check if index is empty
         if self.vector_index.count() == 0:
-            return []
+            return SearchResponse(
+                success=True,
+                results=[],
+                candidate_count=0,
+                returned_count=0
+            )
 
         # Embed query
         try:
             query_vector = self.embedder.embed(query, normalize=True)
         except Exception as e:
             logger.error(f"Query embedding failed: {e}")
-            return []
+            return SearchResponse(
+                success=False,
+                results=[],
+                candidate_count=0,
+                returned_count=0,
+                error_type=SearchResponse.ERROR_EMBEDDING_FAILED,
+                error_message="Failed to generate query embedding"
+            )
 
         # Search vector index
         try:
-            results = self.vector_index.search(query_vector, top_k=top_k)
+            vector_results = self.vector_index.search(query_vector, top_k=top_k)
         except Exception as e:
             logger.error(f"Vector search failed: {e}")
-            return []
+            return SearchResponse(
+                success=False,
+                results=[],
+                candidate_count=0,
+                returned_count=0,
+                error_type=SearchResponse.ERROR_SEARCH_FAILED,
+                error_message="Vector index search failed"
+            )
 
-        # Enrich with chunk text
-        enriched_results = []
-        for result in results:
-            # Get chunk from database
-            chunks = self.kb_store.get_all_indexed_chunks()
-            chunk = next((c for c in chunks if c["chunk_id"] == result.chunk_id), None)
+        candidate_count = len(vector_results)
 
+        # Apply similarity filter
+        filtered_results = [
+            r for r in vector_results
+            if r.similarity >= min_similarity
+        ]
+
+        # Batch fetch chunks by IDs
+        try:
+            chunk_ids = [r.chunk_id for r in filtered_results]
+            chunks_by_id = self.kb_store.get_chunks_by_ids(chunk_ids)
+        except Exception as e:
+            logger.error(f"Database query failed: {e}")
+            return SearchResponse(
+                success=False,
+                results=[],
+                candidate_count=candidate_count,
+                returned_count=0,
+                error_type=SearchResponse.ERROR_DATABASE_FAILED,
+                error_message="Failed to retrieve chunk data"
+            )
+
+        # Build SearchResult objects, preserving FAISS ranking order
+        results = []
+        for vector_result in filtered_results:
+            chunk = chunks_by_id.get(vector_result.chunk_id)
             if chunk:
-                enriched_results.append({
-                    "chunk_id": result.chunk_id,
-                    "file_id": chunk["file_id"],
-                    "chunk_text": chunk["chunk_text"],
-                    "chunk_index": chunk["chunk_index"],
-                    "similarity": result.similarity,
-                    "distance": result.distance
-                })
+                results.append(SearchResult(
+                    chunk_id=vector_result.chunk_id,
+                    chunk_text=chunk["chunk_text"],
+                    chunk_index=chunk["chunk_index"],
+                    similarity=vector_result.similarity,
+                    file_id=chunk["file_id"],
+                    filename=chunk["filename"],
+                    file_type=chunk["file_type"],
+                    source_page=chunk.get("source_page"),
+                    source_section=chunk.get("source_section")
+                ))
 
-        return enriched_results
+        return SearchResponse(
+            success=True,
+            results=results,
+            candidate_count=candidate_count,
+            returned_count=len(results)
+        )
 
     def delete_file_index(self, file_id: str) -> bool:
         """Delete index entries for a file.

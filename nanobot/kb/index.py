@@ -179,8 +179,8 @@ class VectorIndex:
                 continue  # Skip corrupted entry
 
             # For normalized vectors with IndexFlatIP, distance = inner product = cosine similarity
-            # Clamp to [0, 1] range (numerical errors may cause slight overflow)
-            similarity = float(np.clip(dist, 0.0, 1.0))
+            # Cosine similarity range: [-1.0, 1.0], higher is more similar
+            similarity = float(dist)
 
             results.append(SearchResult(
                 chunk_id=chunk_id,

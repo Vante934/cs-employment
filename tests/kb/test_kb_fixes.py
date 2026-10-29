@@ -285,10 +285,11 @@ def test_mapping_corruption_logs_warning(kb_store, index_manager, tmp_path):
 
     # Search should trigger warning
     with pytest.warns(UserWarning, match="mapping not found"):
-        results = index_manager.search("test query", top_k=5)
+        response = index_manager.search("test query", top_k=5)
 
     # Should still return partial results (not crash)
-    assert isinstance(results, list)
+    assert response.success
+    assert isinstance(response.results, list)
 
 
 def test_search_returns_no_deleted_file_content(kb_store, index_manager):
@@ -307,15 +308,17 @@ def test_search_returns_no_deleted_file_content(kb_store, index_manager):
     index_manager.build_index_for_file(file_id2)
 
     # Search before deletion
-    results_before = index_manager.search("programming", top_k=10)
-    file_ids_before = {r["file_id"] for r in results_before}
+    response_before = index_manager.search("programming", top_k=10)
+    assert response_before.success
+    file_ids_before = {r.file_id for r in response_before.results}
 
     # Delete file1 using coordinated delete
     index_manager.delete_file_complete(file_id1)
 
     # Search after deletion
-    results_after = index_manager.search("programming", top_k=10)
-    file_ids_after = {r["file_id"] for r in results_after}
+    response_after = index_manager.search("programming", top_k=10)
+    assert response_after.success
+    file_ids_after = {r.file_id for r in response_after.results}
 
     # file_id1 should not appear in results
     assert file_id1 not in file_ids_after
