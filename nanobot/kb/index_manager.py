@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -93,6 +94,9 @@ class IndexManager:
         # Lazy-loaded vector index
         self._vector_index: VectorIndex | None = None
 
+        # Thread lock to protect vector index operations
+        self._index_lock = threading.Lock()
+
     @property
     def vector_index(self) -> VectorIndex:
         """Get or create vector index."""
@@ -128,6 +132,12 @@ class IndexManager:
         Returns:
             IndexBuildResult with success status and counts
         """
+        # Acquire lock to protect vector index operations
+        with self._index_lock:
+            return self._build_index_for_file_locked(file_id, force, _skip_save, _skip_db_update)
+
+    def _build_index_for_file_locked(self, file_id: str, force: bool = False, _skip_save: bool = False, _skip_db_update: bool = False) -> IndexBuildResult:
+        """Internal implementation of build_index_for_file (must be called with lock held)."""
         # Get file record
         file_record = self.kb_store.get_file(file_id)
         if not file_record:
@@ -452,6 +462,12 @@ class IndexManager:
         Returns:
             IndexBuildResult with total counts
         """
+        # Acquire lock to protect vector index operations
+        with self._index_lock:
+            return self._rebuild_all_locked(force)
+
+    def _rebuild_all_locked(self, force: bool = False) -> IndexBuildResult:
+        """Internal implementation of rebuild_all (must be called with lock held)."""
         if force:
             # Clear entire index
             self.vector_index.clear()
@@ -463,7 +479,7 @@ class IndexManager:
         total_failed = 0
 
         for file_record in files:
-            result = self.build_index_for_file(
+            result = self._build_index_for_file_locked(
                 file_record["file_id"],
                 force=force,
                 _skip_save=True,
@@ -541,7 +557,15 @@ class IndexManager:
             if response.success:
                 for result in response.results:
                     print(f"{result.filename}: {result.similarity:.2f}")
+        """
+        # Acquire lock to protect vector index read operations
+        with self._index_lock:
+            return self._search_locked(query, top_k, min_similarity)
 
+    def _search_locked(self, query: str, top_k: int = 5, min_similarity: float = 0.0) -> SearchResponse:
+        """Internal implementation of search (must be called with lock held).
+
+        Examples:
             # High-relevance only
             response = manager.search("API docs", min_similarity=0.7)
 
@@ -665,19 +689,21 @@ class IndexManager:
         Returns:
             True if any vectors were removed
         """
-        pattern = f"^{re.escape(file_id)}_chunk_\\d+$"
-        chunk_ids = self.vector_index.chunk_ids_matching(pattern)
+        # Acquire lock to protect vector index operations
+        with self._index_lock:
+            pattern = f"^{re.escape(file_id)}_chunk_\\d+$"
+            chunk_ids = self.vector_index.chunk_ids_matching(pattern)
 
-        if not chunk_ids:
-            return False
+            if not chunk_ids:
+                return False
 
-        removed_any = False
-        for chunk_id in chunk_ids:
-            if self.vector_index.remove(chunk_id):
-                removed_any = True
+            removed_any = False
+            for chunk_id in chunk_ids:
+                if self.vector_index.remove(chunk_id):
+                    removed_any = True
 
-        if removed_any:
-            self.vector_index.save()
+            if removed_any:
+                self.vector_index.save()
 
         return removed_any
 
@@ -693,27 +719,29 @@ class IndexManager:
         Raises:
             Exception: If critical failures occur during deletion
         """
-        # 1. Find all chunk_ids in FAISS belonging to this file
-        pattern = f"^{re.escape(file_id)}_chunk_\\d+$"
-        chunk_ids = self.vector_index.chunk_ids_matching(pattern)
+        # Acquire lock to protect vector index operations
+        with self._index_lock:
+            # 1. Find all chunk_ids in FAISS belonging to this file
+            pattern = f"^{re.escape(file_id)}_chunk_\\d+$"
+            chunk_ids = self.vector_index.chunk_ids_matching(pattern)
 
-        if not chunk_ids:
-            # No vectors in index, just delete file record
-            self.kb_store.delete_file(file_id)
-            return
+            if not chunk_ids:
+                # No vectors in index, just delete file record
+                self.kb_store.delete_file(file_id)
+                return
 
-        # 2. Remove vectors from index (memory)
-        removed_chunk_ids = []
-        for chunk_id in chunk_ids:
-            if self.vector_index.remove(chunk_id):
-                removed_chunk_ids.append(chunk_id)
+            # 2. Remove vectors from index (memory)
+            removed_chunk_ids = []
+            for chunk_id in chunk_ids:
+                if self.vector_index.remove(chunk_id):
+                    removed_chunk_ids.append(chunk_id)
 
-        if not removed_chunk_ids:
-            # No vectors were actually in index, just delete file record
-            self.kb_store.delete_file(file_id)
-            return
+            if not removed_chunk_ids:
+                # No vectors were actually in index, just delete file record
+                self.kb_store.delete_file(file_id)
+                return
 
-        # 3. Save index (critical step). A prior failed save may have left
+            # 3. Save index (critical step). A prior failed save may have left
         # the desired deletion only in memory, so retry that pending state too.
         if removed_chunk_ids or self.vector_index.is_dirty():
             try:

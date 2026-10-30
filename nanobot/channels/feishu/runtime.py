@@ -999,6 +999,11 @@ class FeishuChannel(BaseChannel):
         self._background_tasks: set[asyncio.Task[Any]] = set()
         self._reaction_ids: dict[str, str] = {}  # message_id → reaction_id
 
+        # Shared KB components (lazy-initialized, thread-safe)
+        self._kb_store = None
+        self._index_manager = None
+        self._kb_components_lock = threading.Lock()
+
     # ------------------------------------------------------------------
     # QR login — writes credentials directly to config.json
     # ------------------------------------------------------------------
@@ -1918,25 +1923,34 @@ class FeishuChannel(BaseChannel):
             # Import KB upload tool
             from nanobot.agent.tools.kb_upload import KBUploadTool
             from nanobot.kb.store import KnowledgeBaseStore
+            from nanobot.kb.index_manager import IndexManager
             from nanobot.config.paths import get_media_dir, get_runtime_subdir
             from nanobot.config.loader import load_config
             from nanobot.session.manager import SessionManager
             
-            # Lazy-load KB tool
+            # Get or create shared KB components (thread-safe)
+            if self._kb_store is None or self._index_manager is None:
+                with self._kb_components_lock:
+                    if self._kb_store is None:
+                        config = load_config()
+                        workspace = config.workspace_path
+                        sessions = SessionManager(workspace)
+                        self._kb_store = KnowledgeBaseStore(sessions.get_sqlite_store())
+
+                    if self._index_manager is None:
+                        self._index_manager = IndexManager(self._kb_store)
+
+            # Lazy-load KB tool with shared IndexManager
             if not hasattr(self, '_kb_tool'):
-                config = load_config()
-                workspace = config.workspace
-                sessions = SessionManager(workspace)
-                
-                kb_store = KnowledgeBaseStore(sessions.get_sqlite_store())
                 media_dir = get_media_dir("feishu")
                 kb_files_dir = get_runtime_subdir("kb") / "files"
                 kb_files_dir.mkdir(parents=True, exist_ok=True)
                 
                 self._kb_tool = KBUploadTool(
-                    kb_store=kb_store,
+                    kb_store=self._kb_store,
                     media_dir=media_dir,
                     kb_files_dir=kb_files_dir,
+                    index_manager=self._index_manager,  # Inject shared IndexManager
                 )
             
             # Execute upload
