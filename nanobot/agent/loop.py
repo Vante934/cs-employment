@@ -415,6 +415,8 @@ class AgentLoop:
         self._unified_session = unified_session
         self._running = False
         self._runtime_context_providers: list[RuntimeContextProvider] = []
+        # Register pending_file context provider
+        self._runtime_context_providers.append(self._pending_file_context_provider)
         self._active_tasks: dict[str, set[asyncio.Task[Any]]] = {}
         self._discarding_sessions: set[str] = set()
         self._background_tasks: set[asyncio.Task[Any]] = set()
@@ -800,6 +802,115 @@ class AgentLoop:
             persist_session=ctx.session.policy.persist and not ctx.ephemeral,
             can_receive_background_results=self._running,
         )
+
+    async def _pending_file_context_provider(
+        self,
+        request: RequestContext,
+    ) -> RuntimeContextBlock | None:
+        """Provide runtime context for pending file uploaded by user.
+
+        Injects file metadata from session into every USER turn to enable
+        multi-turn conversation about the uploaded file.
+        """
+        from nanobot.kb.store import KnowledgeBaseStore
+        from nanobot.runtime_context import RuntimeContextBlock, wrap_runtime_context_lines
+
+        # 1. Check if session_key exists
+        if not request.session_key:
+            return None
+
+        # 2. Read Session
+        try:
+            session = await self.sessions.state.get(request.session_key)
+            if not session:
+                return None
+        except Exception:
+            return None
+
+        # 3. Read pending_file from metadata
+        pending_file = session.metadata.get("pending_file")
+        if not pending_file or not isinstance(pending_file, dict):
+            return None
+
+        # 4. Validate sender_id
+        pending_sender = pending_file.get("sender_id")
+        if not pending_sender or not request.sender_id:
+            return None
+        if pending_sender != request.sender_id:
+            return None
+
+        # 5. Get file_id
+        file_id = pending_file.get("file_id")
+        if not file_id:
+            return None
+
+        # 6. Verify file exists in KB
+        try:
+            kb_store = KnowledgeBaseStore(self.sessions.get_sqlite_store())
+            file_record = kb_store.get_file(file_id)
+        except Exception:
+            return None
+
+        if not file_record:
+            # File deleted, clean up pending_file
+            current_request_id = pending_file.get("request_id")
+            try:
+                def remove_if_same(meta: dict[str, Any]) -> None:
+                    pf = meta.get("pending_file")
+                    if pf and isinstance(pf, dict):
+                        if pf.get("request_id") == current_request_id:
+                            meta.pop("pending_file", None)
+
+                await self.sessions.state.mutate_metadata(
+                    request.session_key,
+                    remove_if_same,
+                    create_if_missing=False,
+                )
+            except Exception:
+                pass
+            return None
+
+        # 7. Check file status
+        file_status = file_record.get("status", "unknown")
+        if file_status == "failed":
+            return None
+
+        # 8. Build Context
+        filename = file_record.get("filename", "Unknown")
+        file_size = file_record.get("file_size", 0)
+        file_type = file_record.get("file_type", "unknown")
+
+        # Format file size
+        size_kb = file_size / 1024
+        if size_kb < 1024:
+            size_str = f"{size_kb:.1f} KB"
+        else:
+            size_str = f"{size_kb / 1024:.1f} MB"
+
+        lines = [
+            "The user has uploaded a file and may ask questions about it.",
+            "",
+            f"File: {filename}",
+            f"Type: {file_type}",
+            f"Size: {size_str}",
+            f"Status: {file_status}",
+        ]
+
+        summary = pending_file.get("summary")
+        if summary:
+            lines.append(f"Summary: {summary}")
+
+        lines.append("")
+
+        if file_status == "pending":
+            lines.append("Note: This file is still being processed.")
+            lines.append("Use the available KB tools to access the file content when needed.")
+            lines.append("If the file is not yet searchable, inform the user it is being processed.")
+        else:  # indexed
+            lines.append("Use the available KB tools to access the file content when needed.")
+
+        content = wrap_runtime_context_lines(lines)
+        return RuntimeContextBlock(source="pending_file", content=content)
 
     async def _resolve_runtime_context_for_turn(
         self,
@@ -2502,7 +2613,7 @@ class AgentLoop:
             )
             role, content = entry.get("role"), entry.get("content")
             if role == "assistant" and not content and not entry.get("tool_calls"):
-                continue  # skip empty assistant messages — they poison session context
+                continue  # skip empty assistant messages �?they poison session context
             if role == "tool":
                 tool_call_id = entry.get("tool_call_id")
                 tool_call_id_str = str(tool_call_id) if tool_call_id else ""

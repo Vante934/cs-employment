@@ -1004,6 +1004,14 @@ class FeishuChannel(BaseChannel):
         self._index_manager = None
         self._kb_components_lock = threading.Lock()
 
+        # SQLite store for welcome message tracking (lazy-initialized)
+        self._sqlite_store = None
+        self._welcome_lock = threading.Lock()  # Prevent concurrent welcome sends
+
+        # Per-user async locks for welcome message flow
+        self._welcome_user_locks: dict[str, asyncio.Lock] = {}
+        self._welcome_user_locks_lock = asyncio.Lock()  # Protect the dict itself
+
     # ------------------------------------------------------------------
     # QR login — writes credentials directly to config.json
     # ------------------------------------------------------------------
@@ -1897,28 +1905,205 @@ class FeishuChannel(BaseChannel):
             return path_str, f"[{msg_type}: {path_str}]"
 
         return None, f"[{msg_type}: download failed]"
-    
+
+    def _extract_file_id(self, result_str: str) -> str | None:
+        """Extract file_id from KBUploadTool result string.
+        
+        Args:
+            result_str: Result string from KBUploadTool.execute()
+            
+        Returns:
+            file_id if found, None otherwise
+            
+        Handles formats:
+        - "ID: {file_id}"
+        - "(ID: {file_id}, ...)"
+        - "File ID: {file_id}"
+        """
+        # Match various ID formats (case-insensitive)
+        match = re.search(r'(?:File\s+)?ID:\s*([a-f0-9\-]{36})', result_str, re.IGNORECASE)
+        if match:
+            return match.group(1)
+        return None
+
+    async def _save_pending_file_to_session(
+        self,
+        sender_id: str,
+        file_id: str,
+        chat_type: str,
+    ) -> bool:
+        """Save pending file info to session metadata.
+        
+        Args:
+            sender_id: Feishu sender ID (ou_xxx)
+            file_id: File ID from KB
+            chat_type: Chat type (p2p or group)
+            
+        Returns:
+            True if successfully saved, False otherwise
+        """
+        # Only support private chat in B2 first version
+        if chat_type != "p2p":
+            self.logger.debug("Skip pending_file for non-p2p chat: {}", chat_type)
+            return False
+        
+        try:
+            # Get file metadata from KB
+            if not self._kb_store:
+                self.logger.warning("KB store not available for pending_file")
+                return False
+            
+            file_record = self._kb_store.get_file(file_id)
+            if not file_record:
+                self.logger.warning("File record not found for file_id: {}", file_id)
+                return False
+            
+            # Check file status
+            file_status = file_record.get("status", "unknown")
+            if file_status == "failed":
+                self.logger.info("Skip pending_file for failed file: {}", file_id)
+                return False
+            
+            # Generate summary (first 200 chars of parsed text)
+            summary = None
+            try:
+                parsed_text = self._kb_store.get_parsed_text(file_id)
+                if parsed_text and isinstance(parsed_text, str):
+                    summary = parsed_text[:200].strip()
+                    if len(parsed_text) > 200:
+                        summary += "..."
+            except Exception as e:
+                self.logger.debug("Failed to generate summary (non-blocking): {}", e)
+            
+            # Build pending_file structure
+            pending_file = {
+                "file_id": file_id,
+                "filename": file_record["filename"],
+                "file_size": file_record["file_size"],
+                "file_type": file_record["file_type"],
+                "upload_time": datetime.now(UTC).isoformat(),
+                "sender_id": sender_id,
+                "summary": summary,
+                "status": "pending",
+                "request_id": str(uuid.uuid4()),
+            }
+            
+            # Construct session_key (private chat)
+            session_key = f"{self.name}:{sender_id}"
+            
+            # Get SessionManager
+            from nanobot.config.loader import load_config
+            from nanobot.session.manager import SessionManager
+            
+            config = load_config()
+            sessions = SessionManager(config.workspace_path)
+            
+            # Atomic update
+            def save_to_meta(meta: dict[str, Any]) -> None:
+                meta["pending_file"] = pending_file
+                return None
+            
+            await sessions.state.mutate_metadata(
+                session_key,
+                save_to_meta,
+                create_if_missing=True,
+            )
+            
+            self.logger.info(
+                "Saved pending_file: file_id={}, filename={}, session={}",
+                file_id,
+                file_record["filename"],
+                session_key,
+            )
+            
+            return True  # Successfully saved
+            
+        except Exception as e:
+            self.logger.exception("Failed to save pending_file (non-blocking): {}", e)
+            return False  # Failed to save
+
+    async def _send_file_greeting(
+        self,
+        sender_id: str,
+        file_id: str,
+    ) -> None:
+        """Send file greeting message after upload.
+        
+        Args:
+            sender_id: Feishu sender ID (ou_xxx)
+            file_id: File ID from KB
+        """
+        try:
+            # Get file information from KB
+            if not self._kb_store:
+                self.logger.warning("KB store not available for file greeting")
+                return
+            
+            file_record = self._kb_store.get_file(file_id)
+            if not file_record:
+                self.logger.warning("File record not found for greeting: {}", file_id)
+                return
+            
+            # Extract file info
+            filename = file_record.get("filename", "文件")
+            file_size = file_record.get("file_size", 0)
+            
+            # Format file size
+            size_kb = file_size / 1024
+            if size_kb < 1024:
+                size_str = f"{size_kb:.1f} KB"
+            else:
+                size_str = f"{size_kb / 1024:.1f} MB"
+            
+            # Build greeting message
+            message = f"""📄 收到文件：{filename} ({size_str})
+
+我可以帮你：
+• 总结文档要点
+• 提取关键信息
+• 回答文档相关问题
+• 分析文档内容
+
+请告诉我你想做什么，或者直接提问。"""
+            
+            # Send message
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(
+                None,
+                self._send_message_sync,
+                "open_id",
+                sender_id,
+                "text",
+                message,
+            )
+            
+            self.logger.info("Sent file greeting for: {}", filename)
+            
+        except Exception as e:
+            self.logger.exception("Failed to send file greeting: {}", e)
+            raise  # Re-raise to trigger fallback
+
     async def _auto_upload_to_kb(self, file_path: str, sender_id: str | None = None) -> str | None:
         """Automatically upload document files to knowledge base.
-        
+
         Args:
             file_path: Path to the downloaded file
             sender_id: Feishu sender ID (optional)
-        
+
         Returns:
             Status message or None if upload was not attempted
         """
         from pathlib import Path
-        
+
         # Check file extension
         path = Path(file_path)
         ext = path.suffix.lower()
-        
+
         # Only process supported document types
         SUPPORTED_EXTS = {".pdf", ".docx", ".txt", ".md", ".xlsx"}
         if ext not in SUPPORTED_EXTS:
             return None
-        
+
         try:
             # Import KB upload tool
             from nanobot.agent.tools.kb_upload import KBUploadTool
@@ -1927,7 +2112,7 @@ class FeishuChannel(BaseChannel):
             from nanobot.config.paths import get_media_dir, get_runtime_subdir
             from nanobot.config.loader import load_config
             from nanobot.session.manager import SessionManager
-            
+
             # Get or create shared KB components (thread-safe)
             if self._kb_store is None or self._index_manager is None:
                 with self._kb_components_lock:
@@ -1941,39 +2126,187 @@ class FeishuChannel(BaseChannel):
                         self._index_manager = IndexManager(self._kb_store)
 
             # Lazy-load KB tool with shared IndexManager
-            if not hasattr(self, '_kb_tool'):
+            if not hasattr(self, '_kb_tool') or sender_id:
+                # Create progress callback for this upload
+                def progress_callback(stage: str, message: str):
+                    """Progress callback called from worker thread."""
+                    if sender_id and self._loop:
+                        try:
+                            # Schedule message send in main event loop from worker thread
+                            asyncio.run_coroutine_threadsafe(
+                                self._send_progress_message(sender_id, message),
+                                self._loop
+                            )
+                        except Exception as e:
+                            self.logger.warning(f"Failed to send progress message: {e}")
+
                 media_dir = get_media_dir("feishu")
                 kb_files_dir = get_runtime_subdir("kb") / "files"
                 kb_files_dir.mkdir(parents=True, exist_ok=True)
-                
-                self._kb_tool = KBUploadTool(
+
+                # Create tool with progress callback if sender_id provided
+                kb_tool = KBUploadTool(
                     kb_store=self._kb_store,
                     media_dir=media_dir,
                     kb_files_dir=kb_files_dir,
                     index_manager=self._index_manager,  # Inject shared IndexManager
+                    progress_callback=progress_callback if sender_id else None,
                 )
-            
+                
+                # Cache tool only if no progress callback (shared instance)
+                if not sender_id:
+                    self._kb_tool = kb_tool
+            else:
+                kb_tool = self._kb_tool
+
             # Execute upload
-            result = await self._kb_tool.execute(file_path=file_path)
-            
+            result = await kb_tool.execute(file_path=file_path)
+
             # Check result
             if getattr(result, "is_error", False):
                 self.logger.warning("KB upload failed: {}", str(result))
                 return f"⚠️ Knowledge base upload failed: {str(result)}"
             else:
                 self.logger.info("File uploaded to KB: {}", path.name)
-                # Extract file ID from result
                 result_str = str(result)
+                
+                # Extract file_id for B2 pending_file management
+                file_id = self._extract_file_id(result_str)
+                
+                if file_id and sender_id:
+                    # Note: chat_type will be passed in next step
+                    # For now, we need to modify the call site to pass it
+                    self.logger.debug("Extracted file_id: {}", file_id)
+                elif not file_id:
+                    self.logger.warning("Failed to extract file_id from KB result: {}", result_str[:200])
+                
+                # Return status message (will be appended to content_text)
                 if "ID:" in result_str:
                     return "✅ File added to knowledge base successfully"
                 elif "already exists" in result_str.lower():
                     return "ℹ️ File already in knowledge base"
                 else:
                     return "✅ File uploaded to knowledge base"
-        
+
         except Exception as e:
             self.logger.exception("Error auto-uploading to KB: {}", e)
             return f"⚠️ KB upload error: {e}"
+
+    def _get_sqlite_store(self):
+        """Get or create SqliteSessionStore (lazy initialization, thread-safe)."""
+        if self._sqlite_store is None:
+            with self._welcome_lock:
+                if self._sqlite_store is None:
+                    from nanobot.config.loader import load_config
+                    from nanobot.session.manager import SessionManager
+
+                    config = load_config()
+                    workspace = config.workspace_path
+                    sessions = SessionManager(workspace)
+                    self._sqlite_store = sessions.get_sqlite_store()
+        return self._sqlite_store
+
+    async def _get_user_welcome_lock(self, user_id: str) -> asyncio.Lock:
+        """Get or create async lock for specific user's welcome message flow.
+
+        Args:
+            user_id: User's open_id
+
+        Returns:
+            Async lock for this user
+        """
+        # Fast path: lock already exists
+        if user_id in self._welcome_user_locks:
+            return self._welcome_user_locks[user_id]
+
+        # Slow path: need to create lock
+        async with self._welcome_user_locks_lock:
+            # Double-check after acquiring lock
+            if user_id not in self._welcome_user_locks:
+                self._welcome_user_locks[user_id] = asyncio.Lock()
+            return self._welcome_user_locks[user_id]
+
+    async def _send_progress_message(self, user_id: str, message: str) -> None:
+        """Send progress message to user.
+
+        Args:
+            user_id: User's open_id
+            message: Progress message to send
+        """
+        try:
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(
+                None,
+                self._send_message_sync,
+                "open_id",
+                user_id,
+                "text",
+                message,
+            )
+        except Exception:
+            # Progress message failure should not raise
+            self.logger.exception(f"Failed to send progress message to {user_id}")
+
+    async def _check_and_send_welcome(self, sender_id: str, chat_id: str, chat_type: str) -> None:
+        """Check if welcome should be sent and send it if needed.
+
+        Args:
+            sender_id: User's open_id
+            chat_id: Chat ID (group chat_id or user open_id for p2p)
+            chat_type: "p2p" or "group"
+        """
+        # Only send welcome in private chat
+        if chat_type != "p2p":
+            return
+
+        # Get user-specific lock to prevent concurrent welcome sends to same user
+        user_lock = await self._get_user_welcome_lock(sender_id)
+
+        # Acquire lock for entire check-send-mark flow
+        async with user_lock:
+            try:
+                store = self._get_sqlite_store()
+
+                # Check if welcome already sent (in executor to avoid blocking)
+                loop = asyncio.get_running_loop()
+                welcome_sent = await loop.run_in_executor(
+                    None, store.check_welcome_sent, self.name, sender_id
+                )
+
+                if welcome_sent:
+                    return
+
+                # Send welcome message
+                welcome_text = """你好，我是小文，很高兴认识你。
+
+我可以帮你：
+1. 阅读和理解文件，提炼重点、总结内容
+2. 整理知识资料，建立个人知识库
+3. 检索已有资料，回答问题
+
+直接发送文件或告诉我你的需求，就可以开始了。"""
+
+                rid_type = "open_id"  # p2p always uses open_id
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(
+                    None,
+                    self._send_message_sync,
+                    rid_type,
+                    sender_id,
+                    "text",
+                    welcome_text,
+                )
+
+                # Mark as sent only after successful delivery
+                await loop.run_in_executor(
+                    None, store.mark_welcome_sent, self.name, sender_id
+                )
+
+                self.logger.info("Welcome message sent to user {}", sender_id)
+
+            except Exception:
+                # Welcome message failure should not block normal message processing
+                self.logger.exception("Failed to send welcome message to user {}", sender_id)
 
     _REPLY_CONTEXT_MAX_LEN = 200
 
@@ -2777,13 +3110,22 @@ class FeishuChannel(BaseChannel):
                     )
                 return
 
+            # Check and send welcome message if this is first interaction
+            # (non-blocking, runs in background)
+            try:
+                await self._check_and_send_welcome(sender_id, chat_id, chat_type)
+            except Exception:
+                # Welcome failure should not block message processing
+                self.logger.exception("Error in welcome message flow")
+
             # Add reaction (non-blocking — tracked background task)
-            task = asyncio.create_task(
-                self._add_reaction(message_id, self.config.react_emoji)
-            )
-            self._background_tasks.add(task)
-            task.add_done_callback(self._on_background_task_done)
-            task.add_done_callback(lambda t: self._on_reaction_added(message_id, t))
+            if self.config.react_emoji:
+                task = asyncio.create_task(
+                    self._add_reaction(message_id, self.config.react_emoji)
+                )
+                self._background_tasks.add(task)
+                task.add_done_callback(self._on_background_task_done)
+                task.add_done_callback(lambda t: self._on_reaction_added(message_id, t))
 
             # Parse content
             content_parts: list[str] = []
@@ -2823,11 +3165,36 @@ class FeishuChannel(BaseChannel):
                 )
                 if file_path:
                     media_paths.append(file_path)
-                    
+
                     # Auto-upload document files to knowledge base
                     if msg_type == "file":
                         kb_result = await self._auto_upload_to_kb(file_path, sender_id)
+                        
+                        # B2-A: Extract file_id and save pending_file
                         if kb_result:
+                            result_str = str(kb_result)
+                            file_id = self._extract_file_id(result_str)
+                            
+                            if file_id:
+                                # Save pending_file to session metadata
+                                saved = await self._save_pending_file_to_session(
+                                    sender_id=sender_id,
+                                    file_id=file_id,
+                                    chat_type=chat_type,
+                                )
+                                
+                                # B2-D: Send greeting and block only if saved successfully
+                                if chat_type == "p2p" and saved:
+                                    try:
+                                        await self._send_file_greeting(sender_id, file_id)
+                                        # Successfully sent greeting, don't send to Agent
+                                        self.logger.info("File greeting sent, blocking Agent flow")
+                                        return
+                                    except Exception as e:
+                                        # Greeting failed, fallback to normal flow
+                                        self.logger.warning("File greeting failed, using fallback: {}", e)
+                            
+                            # Group chat, save failed, or greeting failed: append KB result to content
                             content_text = f"{content_text}\n{kb_result}"
 
                 if msg_type == "audio" and file_path:

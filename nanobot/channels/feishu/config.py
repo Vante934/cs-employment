@@ -19,7 +19,7 @@ class FeishuConfig(Base):
     encrypt_key: str = ""
     verification_token: str = ""
     allow_from: list[str] = Field(default_factory=list)
-    react_emoji: str = "THUMBSUP"
+    react_emoji: str = "OK"
     done_emoji: str | None = None
     tool_hint_prefix: str = "\U0001f527"
     group_policy: Literal["open", "mention"] = "mention"

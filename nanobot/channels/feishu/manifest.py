@@ -27,7 +27,7 @@ SETUP_SPEC = ChannelSetupSpec(
         "name": field(default="nanobot", snapshot=False),
         "encryptKey": field("secret", snapshot=False),
         "verificationToken": field("secret", snapshot=False),
-        "reactEmoji": field(default="THUMBSUP", snapshot=False),
+        "reactEmoji": field(default="OK", snapshot=False),
         "doneEmoji": field(snapshot=False),
         "toolHintPrefix": field(default="🔧", snapshot=False),
         "replyToMessage": field("bool", default=False, snapshot=False),

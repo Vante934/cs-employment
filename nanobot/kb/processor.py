@@ -35,7 +35,8 @@ def process_file(
     file_id: str,
     kb_store: KnowledgeBaseStore,
     index_manager: IndexManager,
-    force: bool = False
+    force: bool = False,
+    progress_callback: callable | None = None
 ) -> ProcessResult:
     """Process a file through the complete KB pipeline.
     
@@ -50,6 +51,8 @@ def process_file(
         kb_store: Knowledge base store
         index_manager: Index manager
         force: Force reprocessing even if already processed
+        progress_callback: Optional callback for progress updates.
+                          Signature: callback(stage: str, message: str)
     
     Returns:
         ProcessResult with detailed status
@@ -89,6 +92,13 @@ def process_file(
         parse_elapsed = (datetime.now() - parse_start).total_seconds()
         logger.debug(f"[{file_id}] Parse completed in {parse_elapsed:.2f}s")
         result.parsed = True
+        
+        # Progress callback: parsing complete
+        if progress_callback:
+            try:
+                progress_callback("parsing", "文件读取完成，正在整理内容...")
+            except Exception as e:
+                logger.warning(f"[{file_id}] Progress callback failed (parsing): {e}")
         
     except Exception as e:
         logger.exception(f"[{file_id}] Parse stage exception")
@@ -156,6 +166,13 @@ def process_file(
         chunk_elapsed = (datetime.now() - chunk_start).total_seconds()
         logger.debug(f"[{file_id}] Chunked into {chunk_result.chunk_count} chunks in {chunk_elapsed:.2f}s")
         
+        # Progress callback: chunking complete
+        if progress_callback:
+            try:
+                progress_callback("chunking", f"内容整理完成（{chunk_result.chunk_count}块），正在建立索引...")
+            except Exception as e:
+                logger.warning(f"[{file_id}] Progress callback failed (chunking): {e}")
+        
     except Exception as e:
         logger.exception(f"[{file_id}] Chunk stage exception")
         kb_store.update_file_status(file_id, "failed", error_message=f"Chunk exception: {e}")
@@ -200,6 +217,13 @@ def process_file(
             f"[{file_id}] Processing completed successfully in {total_elapsed:.2f}s: "
             f"{result.chunk_count} chunks, {result.indexed_count} indexed"
         )
+        
+        # Progress callback: complete
+        if progress_callback:
+            try:
+                progress_callback("complete", "文件已成功加入知识库")
+            except Exception as e:
+                logger.warning(f"[{file_id}] Progress callback failed (complete): {e}")
         
     except Exception as e:
         logger.exception(f"[{file_id}] Failed to update final status to 'indexed'")

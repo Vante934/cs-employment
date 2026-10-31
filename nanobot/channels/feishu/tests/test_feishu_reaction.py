@@ -295,3 +295,93 @@ class TestStreamEndReactionCleanup:
         ch._remove_reaction.assert_awaited_once_with("om_001", "rx_42")
         ch._add_reaction.assert_awaited_once_with("om_001", "DONE")
         assert ch._reaction_ids == {"om_other": "rx_other"}
+
+
+
+class TestReactEmojiConfiguration:
+    """Test react_emoji configuration behavior."""
+
+    @pytest.mark.asyncio
+    async def test_empty_react_emoji_skips_reaction(self):
+        """When react_emoji is empty string, no reaction should be added."""
+        from unittest.mock import AsyncMock, patch
+
+        config = FeishuConfig(
+            enabled=True,
+            app_id="cli_test",
+            app_secret="secret",
+            allow_from=["*"],
+            react_emoji="",  # Empty string
+        )
+        ch = FeishuChannel(config, MessageBus())
+        ch._client = MagicMock()
+        ch._running = True
+        ch._add_reaction = AsyncMock()
+
+        # Mock message event
+        from types import SimpleNamespace
+        message = SimpleNamespace(
+            message_id="om_test",
+            message_type="text",
+            content='{"text": "hello"}',
+            chat_id="oc_test",
+            chat_type="p2p",
+            mentions=None,
+        )
+        sender = SimpleNamespace(
+            sender_id=SimpleNamespace(open_id="ou_user1"),
+            sender_type="user",
+        )
+        event = SimpleNamespace(message=message, sender=sender)
+        data = SimpleNamespace(event=event)
+
+        with patch.object(ch, '_handle_message', new_callable=AsyncMock):
+            await ch._on_message(data)
+
+        # Should NOT call _add_reaction
+        ch._add_reaction.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_ok_react_emoji_adds_reaction(self):
+        """When react_emoji is 'OK', reaction should be added."""
+        from unittest.mock import AsyncMock, patch
+
+        config = FeishuConfig(
+            enabled=True,
+            app_id="cli_test",
+            app_secret="secret",
+            allow_from=["*"],
+            react_emoji="OK",
+        )
+        ch = FeishuChannel(config, MessageBus())
+        ch._client = MagicMock()
+        ch._running = True
+        ch._add_reaction = AsyncMock(return_value="rx_ok")
+
+        # Mock message event
+        from types import SimpleNamespace
+        message = SimpleNamespace(
+            message_id="om_test",
+            message_type="text",
+            content='{"text": "hello"}',
+            chat_id="oc_test",
+            chat_type="p2p",
+            mentions=None,
+        )
+        sender = SimpleNamespace(
+            sender_id=SimpleNamespace(open_id="ou_user1"),
+            sender_type="user",
+        )
+        event = SimpleNamespace(message=message, sender=sender)
+        data = SimpleNamespace(event=event)
+
+        with patch.object(ch, '_handle_message', new_callable=AsyncMock):
+            await ch._on_message(data)
+
+        # Should call _add_reaction with 'OK'
+        # Note: called in background task, need to wait
+        import asyncio
+        await asyncio.sleep(0.1)
+        ch._add_reaction.assert_called()
+        args = ch._add_reaction.call_args
+        assert args[0][1] == "OK"

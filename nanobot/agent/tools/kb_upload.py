@@ -34,6 +34,7 @@ class KBUploadTool(Tool):
         kb_files_dir: Path,
         max_file_size_mb: int = DEFAULT_MAX_FILE_SIZE_MB,
         index_manager: "IndexManager | None" = None,
+        progress_callback: "callable | None" = None,
     ):
         """Initialize KB upload tool.
 
@@ -43,11 +44,13 @@ class KBUploadTool(Tool):
             kb_files_dir: Directory where KB files should be stored
             max_file_size_mb: Maximum file size in MB
             index_manager: Optional shared IndexManager instance (for dependency injection)
+            progress_callback: Optional callback for progress updates from worker thread
         """
         self._kb_store = kb_store
         self._media_dir = media_dir.resolve()
         self._kb_files_dir = kb_files_dir
         self._max_file_size_bytes = max_file_size_mb * 1024 * 1024
+        self._progress_callback = progress_callback
 
         # Singleton IndexManager for model reuse
         # If injected, use the provided instance; otherwise, create lazily
@@ -273,12 +276,22 @@ class KBUploadTool(Tool):
 
             index_manager = self._get_index_manager()
 
+
+            # Send initial progress message
+            if self._progress_callback:
+                try:
+                    self._progress_callback("start", "正在处理文件...")
+                except Exception:
+                    pass
+
             # Execute processing in thread pool to avoid blocking event loop
             process_result = await asyncio.to_thread(
                 process_file,
                 file_id,
                 self._kb_store,
-                index_manager
+                index_manager,
+                False,
+                self._progress_callback
             )
 
             if process_result.success:

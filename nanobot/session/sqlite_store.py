@@ -120,10 +120,27 @@ def _create_kb_schema(db: sqlite3.Connection) -> None:
         db.execute(statement)
 
 
+def _create_channel_user_state_schema(db: sqlite3.Connection) -> None:
+    """Create channel user state table (schema v3)."""
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS channel_user_state (
+            channel_name TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            welcome_sent INTEGER NOT NULL DEFAULT 0,
+            welcome_sent_at TEXT,
+            first_interaction_at TEXT NOT NULL,
+            last_interaction_at TEXT NOT NULL,
+            PRIMARY KEY (channel_name, user_id)
+        )
+    """)
+    db.execute("CREATE INDEX IF NOT EXISTS idx_channel_user_state_welcome ON channel_user_state(welcome_sent)")
+
+
 # Entries upgrade version N to N+1. Preserve released entries and append upgrades.
 _SCHEMA_MIGRATIONS: tuple[Callable[[sqlite3.Connection], None], ...] = (
     _create_schema_v1,
     _create_kb_schema,
+    _create_channel_user_state_schema,
 )
 
 
@@ -499,3 +516,42 @@ class SqliteSessionStore:
                 row["path"] = str(self.path)
                 row["metadata"] = _object(row["metadata"])
             return rows
+
+    # Channel user state management
+
+    def check_welcome_sent(self, channel_name: str, user_id: str) -> bool:
+        """Check if welcome message has been sent to user in this channel."""
+        with self.transaction(write=False) as db:
+            row = db.execute(
+                "SELECT welcome_sent FROM channel_user_state WHERE channel_name=? AND user_id=?",
+                (channel_name, user_id),
+            ).fetchone()
+            return bool(row[0]) if row else False
+
+    def mark_welcome_sent(self, channel_name: str, user_id: str) -> None:
+        """Mark welcome message as sent to user in this channel."""
+        from datetime import datetime
+        now = datetime.now().isoformat()
+        with self.transaction(write=True) as db:
+            db.execute(
+                """INSERT INTO channel_user_state
+                   (channel_name, user_id, welcome_sent, welcome_sent_at, first_interaction_at, last_interaction_at)
+                   VALUES (?, ?, 1, ?, ?, ?)
+                   ON CONFLICT(channel_name, user_id)
+                   DO UPDATE SET welcome_sent=1, welcome_sent_at=?, last_interaction_at=?""",
+                (channel_name, user_id, now, now, now, now, now),
+            )
+
+    def record_user_interaction(self, channel_name: str, user_id: str) -> None:
+        """Record user interaction (update last_interaction_at)."""
+        from datetime import datetime
+        now = datetime.now().isoformat()
+        with self.transaction(write=True) as db:
+            db.execute(
+                """INSERT INTO channel_user_state
+                   (channel_name, user_id, welcome_sent, first_interaction_at, last_interaction_at)
+                   VALUES (?, ?, 0, ?, ?)
+                   ON CONFLICT(channel_name, user_id)
+                   DO UPDATE SET last_interaction_at=?""",
+                (channel_name, user_id, now, now, now),
+            )

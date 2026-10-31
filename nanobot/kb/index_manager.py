@@ -536,7 +536,8 @@ class IndexManager:
         self,
         query: str,
         top_k: int = 5,
-        min_similarity: float = 0.0
+        min_similarity: float = 0.0,
+        file_id: str | None = None
     ) -> SearchResponse:
         """Search knowledge base for similar chunks.
 
@@ -544,6 +545,7 @@ class IndexManager:
             query: Query text (max 10000 chars)
             top_k: Maximum number of results to return (1-100, default 5)
             min_similarity: Minimum similarity threshold in [-1.0, 1.0] (default 0.0)
+            file_id: Optional file ID to limit search to a specific file
 
         Returns:
             SearchResponse with results, metadata, and status
@@ -557,12 +559,15 @@ class IndexManager:
             if response.success:
                 for result in response.results:
                     print(f"{result.filename}: {result.similarity:.2f}")
+
+            # File-scoped search
+            response = manager.search("Python", file_id="abc-123")
         """
         # Acquire lock to protect vector index read operations
         with self._index_lock:
-            return self._search_locked(query, top_k, min_similarity)
+            return self._search_locked(query, top_k, min_similarity, file_id)
 
-    def _search_locked(self, query: str, top_k: int = 5, min_similarity: float = 0.0) -> SearchResponse:
+    def _search_locked(self, query: str, top_k: int = 5, min_similarity: float = 0.0, file_id: str | None = None) -> SearchResponse:
         """Internal implementation of search (must be called with lock held).
 
         Examples:
@@ -574,6 +579,10 @@ class IndexManager:
             if not response.success:
                 print(f"Error: {response.error_message} (type: {response.error_type})")
         """
+        # If file_id specified, use file-scoped search
+        if file_id is not None:
+            return self._search_file_scope(query, file_id, top_k, min_similarity)
+
         # Parameter validation
         if not query or not query.strip():
             return SearchResponse(
@@ -675,6 +684,131 @@ class IndexManager:
             success=True,
             results=results,
             candidate_count=candidate_count,
+            returned_count=len(results)
+        )
+
+    def _search_file_scope(
+        self,
+        query: str,
+        file_id: str,
+        top_k: int,
+        min_similarity: float
+    ) -> SearchResponse:
+        """Search within a specific file's chunks.
+
+        Args:
+            query: Search query
+            file_id: Target file ID
+            top_k: Maximum results to return
+            min_similarity: Minimum similarity threshold
+
+        Returns:
+            SearchResponse with file-scoped results
+        """
+        import re
+
+        # Parameter validation (same as global search)
+        if not query or not query.strip():
+            return SearchResponse(
+                success=False,
+                results=[],
+                candidate_count=0,
+                returned_count=0,
+                error_type=SearchResponse.ERROR_INVALID_QUERY,
+                error_message="Empty query"
+            )
+
+        if len(query) > 10000:
+            raise ValueError(f"Query too long: {len(query)} chars (max 10000)")
+
+        if not 1 <= top_k <= 100:
+            raise ValueError(f"Invalid top_k: {top_k} (must be 1-100)")
+
+        if not -1.0 <= min_similarity <= 1.0:
+            raise ValueError(f"Invalid min_similarity: {min_similarity} (must be -1.0 to 1.0)")
+
+        # Find all chunks for this file
+        pattern = f"^{re.escape(file_id)}_chunk_\\d+$"
+        target_chunk_ids = self.vector_index.chunk_ids_matching(pattern)
+
+        if not target_chunk_ids:
+            # File has no indexed chunks
+            return SearchResponse(
+                success=True,
+                results=[],
+                candidate_count=0,
+                returned_count=0
+            )
+
+        # Embed query (same as global search)
+        try:
+            query_vector = self.embedder.embed(query, normalize=True)
+        except Exception as e:
+            logger.error(f"Query embedding failed: {e}")
+            return SearchResponse(
+                success=False,
+                results=[],
+                candidate_count=0,
+                returned_count=0,
+                error_type=SearchResponse.ERROR_EMBEDDING_FAILED,
+                error_message="Failed to generate query embedding"
+            )
+
+        # Calculate similarities for all chunks in this file
+        similarities = []
+        for chunk_id in target_chunk_ids:
+            try:
+                vector = self.vector_index.get_vector(chunk_id)
+                if vector is None:
+                    continue
+
+                # Calculate cosine similarity (inner product for normalized vectors)
+                similarity = float(np.dot(query_vector, vector))
+
+                if similarity >= min_similarity:
+                    similarities.append((chunk_id, similarity))
+            except Exception as e:
+                logger.warning(f"Failed to get vector for {chunk_id}: {e}")
+                continue
+
+        # Sort by similarity (descending) and take top_k
+        similarities.sort(key=lambda x: x[1], reverse=True)
+        top_similarities = similarities[:top_k]
+
+        if not top_similarities:
+            # No results passed min_similarity
+            return SearchResponse(
+                success=True,
+                results=[],
+                candidate_count=len(similarities),
+                returned_count=0
+            )
+
+        # Batch query chunks from SQLite
+        chunk_ids = [cid for cid, _ in top_similarities]
+        chunks_by_id = self.kb_store.get_chunks_by_ids(chunk_ids)
+
+        # Build SearchResult objects
+        results = []
+        for chunk_id, similarity in top_similarities:
+            chunk = chunks_by_id.get(chunk_id)
+            if chunk:
+                results.append(SearchResult(
+                    chunk_id=chunk_id,
+                    chunk_text=chunk["chunk_text"],
+                    chunk_index=chunk["chunk_index"],
+                    similarity=similarity,
+                    file_id=chunk["file_id"],
+                    filename=chunk["filename"],
+                    file_type=chunk["file_type"],
+                    source_page=chunk.get("source_page"),
+                    source_section=chunk.get("source_section")
+                ))
+
+        return SearchResponse(
+            success=True,
+            results=results,
+            candidate_count=len(similarities),
             returned_count=len(results)
         )
 
