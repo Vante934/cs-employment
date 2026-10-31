@@ -2277,32 +2277,47 @@ class FeishuChannel(BaseChannel):
                     return
 
                 # Send welcome message
-                welcome_text = """你好，我是小文，很高兴认识你。
+                welcome_text = """你好，我是小文，你的个人文件知识库助手。
 
-我可以帮你：
-1. 阅读和理解文件，提炼重点、总结内容
-2. 整理知识资料，建立个人知识库
-3. 检索已有资料，回答问题
+**我可以帮你：**
+- 总结文件内容，提取关键信息
+- 查找文件中的具体内容、数字和日期
+- 整理知识清单、流程和重点
+- 根据文件内容回答问题
 
-直接发送文件或告诉我你的需求，就可以开始了。"""
+**目前支持的文件格式：**
+PDF、DOCX、TXT、Markdown、XLSX
+
+**使用须知：**
+- 单个文件最大支持 50 MiB
+- 暂不支持 PPTX、DOC 等格式
+- 暂不支持图片内容识别
+- 发送文件后，我会先确认文件接收情况；你提出具体需求后，我再进行总结、检索或分析
+
+直接发送支持格式的文件，就可以开始使用。"""
+
+                # Format content as JSON for Feishu text message API
+                content = json.dumps({"text": welcome_text}, ensure_ascii=False)
 
                 rid_type = "open_id"  # p2p always uses open_id
                 loop = asyncio.get_running_loop()
-                await loop.run_in_executor(
+                message_id = await loop.run_in_executor(
                     None,
                     self._send_message_sync,
                     rid_type,
                     sender_id,
                     "text",
-                    welcome_text,
+                    content,
                 )
 
                 # Mark as sent only after successful delivery
-                await loop.run_in_executor(
-                    None, store.mark_welcome_sent, self.name, sender_id
-                )
-
-                self.logger.info("Welcome message sent to user {}", sender_id)
+                if message_id:
+                    await loop.run_in_executor(
+                        None, store.mark_welcome_sent, self.name, sender_id
+                    )
+                    self.logger.info("Welcome message sent to user {}", sender_id)
+                else:
+                    self.logger.warning("Welcome message delivery failed for user {}", sender_id)
 
             except Exception:
                 # Welcome message failure should not block normal message processing

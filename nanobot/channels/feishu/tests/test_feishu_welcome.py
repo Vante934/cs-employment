@@ -168,6 +168,8 @@ class TestWelcomeMessageConcurrency:
                 if send_count == 1:
                     import time
                     time.sleep(0.1)
+                # Return message_id to indicate success
+                return f"msg_{send_count}"
 
             ch._send_message_sync = MagicMock(side_effect=mock_send)
 
@@ -201,6 +203,8 @@ class TestWelcomeMessageConcurrency:
 
             def mock_send(rid_type, user_id, msg_type, text):
                 sends.append(user_id)
+                # Return message_id to indicate success
+                return f"msg_{user_id}"
 
             ch._send_message_sync = MagicMock(side_effect=mock_send)
 
@@ -240,6 +244,8 @@ class TestWelcomeMessageConcurrency:
                 # Simulate slow send
                 import time
                 time.sleep(0.05)
+                # Return message_id to indicate success
+                return f"msg_{send_count}"
 
             ch._send_message_sync = MagicMock(side_effect=mock_send)
 
@@ -316,3 +322,112 @@ class TestWelcomeMessageConcurrency:
 
             # Should NOT send
             ch._send_message_sync.assert_not_called()
+
+
+class TestWelcomeMessageContent:
+    """Test welcome message content and JSON format."""
+
+    @pytest.mark.asyncio
+    async def test_welcome_message_json_format(self):
+        """Welcome message content should be valid JSON."""
+        import json
+        ch = _make_channel()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from nanobot.session.sqlite_store import SqliteSessionStore
+            store = SqliteSessionStore(Path(tmpdir))
+            store.initialize(Path(tmpdir))
+            ch._sqlite_store = store
+
+            sent_content = None
+
+            def mock_send(rid_type, user_id, msg_type, content):
+                nonlocal sent_content
+                sent_content = content
+                return "msg_123"
+
+            ch._send_message_sync = MagicMock(side_effect=mock_send)
+
+            await ch._check_and_send_welcome("ou_user1", "ou_user1", "p2p")
+
+            # Verify content is valid JSON
+            assert sent_content is not None
+            parsed = json.loads(sent_content)
+            assert "text" in parsed
+            assert isinstance(parsed["text"], str)
+
+    @pytest.mark.asyncio
+    async def test_welcome_message_content_includes_capabilities(self):
+        """Welcome message should include supported formats and limitations."""
+        ch = _make_channel()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from nanobot.session.sqlite_store import SqliteSessionStore
+            store = SqliteSessionStore(Path(tmpdir))
+            store.initialize(Path(tmpdir))
+            ch._sqlite_store = store
+
+            sent_content = None
+
+            def mock_send(rid_type, user_id, msg_type, content):
+                nonlocal sent_content
+                sent_content = content
+                return "msg_123"
+
+            ch._send_message_sync = MagicMock(side_effect=mock_send)
+
+            await ch._check_and_send_welcome("ou_user1", "ou_user1", "p2p")
+
+            # Parse content
+            import json
+            parsed = json.loads(sent_content)
+            text = parsed["text"]
+
+            # Check for supported formats
+            assert "PDF" in text
+            assert "DOCX" in text
+            assert "TXT" in text
+            assert "Markdown" in text
+            assert "XLSX" in text
+
+            # Check for file size limit
+            assert "50 MiB" in text or "50 MB" in text
+
+            # Check for unsupported formats
+            assert "PPTX" in text or "PPT" in text
+            assert "DOC" in text
+
+            # Check for image limitation
+            assert "图片" in text or "识别" in text
+
+    @pytest.mark.asyncio
+    async def test_welcome_message_no_duplicate_json_encoding(self):
+        """Content should not be double-encoded."""
+        import json
+        ch = _make_channel()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from nanobot.session.sqlite_store import SqliteSessionStore
+            store = SqliteSessionStore(Path(tmpdir))
+            store.initialize(Path(tmpdir))
+            ch._sqlite_store = store
+
+            sent_content = None
+
+            def mock_send(rid_type, user_id, msg_type, content):
+                nonlocal sent_content
+                sent_content = content
+                return "msg_123"
+
+            ch._send_message_sync = MagicMock(side_effect=mock_send)
+
+            await ch._check_and_send_welcome("ou_user1", "ou_user1", "p2p")
+
+            # Parse once should work
+            parsed = json.loads(sent_content)
+            text = parsed["text"]
+
+            # Text should be plain string, not JSON-encoded again
+            # If it were double-encoded, it would start with '"'
+            assert not text.startswith('"')
+            assert not text.endswith('"')
